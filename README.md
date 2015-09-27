@@ -115,11 +115,6 @@ Output
 
     b) RESULTS.UCSC: file to view the enhancer and promoter regions in UCSC browser
 
-Command to create small example files
-=====================================
-
-    samtools view -s 0.00001 <bam file> -b > <small bam file>
-
 More info
 =========
 
