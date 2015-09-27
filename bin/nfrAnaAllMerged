@@ -1,0 +1,236 @@
+#!/bin/bash
+#PBS -l nodes=1:ppn=4
+
+<<"copyright_info"
+nfrAnaAllMerged: predict NFRs using both H3K4me1 and H3K4me3 modifications
+Copyright (C) 2015  Sachin Pundhir (pundhir@binf.ku.dk)
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program.  If not, see <http://www.gnu.org/licenses/>.
+copyright_info
+
+MINNFRLENGTH=20
+MAXNFRLENGTH=1000
+NFR_THRESHOLD="0.05"
+GENOME="mm9"
+SHUFFLECOUNT="100000"
+
+#### usage ####
+usage() {
+	echo Program: "nfrAnaAllMerged (predict NFRs using both H3K4me1 and H3K4me3 modifications)"
+	echo Author: BRIC, University of Copenhagen, Denmark
+	echo Version: 1.0
+	echo Contact: pundhir@binf.ku.dk
+	echo "Usage: nfrAnaAllMerged -i <dir> -j <dir> -o <dir> [OPTIONS]"
+	echo "Options:"
+	echo " -i <file>   [input directory containing NFR analysis results based on H3K4me1]"
+	echo " -j <file>   [input directory containing NFR analysis results based on H3K4me3]"
+    echo " -o <dir>    [output directory to store results (should be absolute path)]"
+    echo "[OPTIONS]"
+    echo " -m <string> [genome (default: mm9)]"
+    echo " -p          [run in parallel]"
+    echo " -n <int>    [minimum length of nucleosome free region (default: 20)]"
+    echo " -v <int>    [maximum length of nucleosome free region (default: 1000)]"
+    echo " -t <float>  [FDR at which to consider a NFR as significant (default: 0.05)]"
+    echo " -u <int>    [number of times NFR regions should be shuffled to compute p-values (default: 100000)]"
+	echo " -h          [help]"
+	echo
+	exit 0
+}
+
+#### parse options ####
+while getopts i:j:o:m:pn:v:t:u:h ARG; do
+	case "$ARG" in
+		i) ME1=$OPTARG;;
+		j) ME3=$OPTARG;;
+        o) OUTDIR=$OPTARG;;
+        m) GENOME=$OPTARG;;
+        p) PARALLEL=1;;
+        n) MINNFRLENGTH=$OPTARG;;
+        v) MAXNFRLENGTH=$OPTARG;;
+        t) NFR_THRESHOLD=$OPTARG;;
+        u) SHUFFLECOUNT=$OPTARG;;
+		h) HELP=1;;
+	esac
+done
+
+echo
+if [ "$HELP" ]; then
+    usage
+fi
+
+echo
+echo -n "Check, if all required parameters and files are provided (`date`).. "
+## usage, if necessary file and directories are given/exist
+if [ ! -d "$ME1" -o ! -d "$ME3" ]; then
+    echo
+    echo "Error: one or more required paramter values not provided"
+    echo
+	usage
+fi
+echo "done"
+
+###################
+#helperfunction
+function wait_for_jobs_to_finish {
+    for job in `jobs -p`
+    do
+        echo $job
+        wait $job
+    done
+    echo $1
+}
+###############
+
+echo -n "Create directory structure (`date`).. "
+if [ ! -d "$OUTDIR" ]; then
+    mkdir $OUTDIR
+fi
+
+if [ ! -d "$OUTDIR/mergedInputFiles" ]; then
+    mkdir $OUTDIR/mergedInputFiles
+fi
+
+if [ ! -d "$OUTDIR/nfrDirectionAna" ]; then
+    mkdir $OUTDIR/nfrDirectionAna
+fi
+echo "done"
+
+echo -n "Populating files based on input genome, $GENOME (`date`).. "
+GENOME_FILE=$(initialize_genome -i $PAREPATH/data/annotations/GENOME_FILE -g $GENOME)
+GENOME_FILE=$PAREPATH/data/annotations/$GENOME_FILE
+if [ ! -f "$GENOME_FILE" ]; then
+    echo
+    echo "computation for $GENOME is not feasible yet"
+    echo "please add the chromosome size file for $GENOME at $PAREPATH/data/annotations"
+    echo "also update the $PAREPATH/data/annotations/GENOME_FILE"
+    echo
+    usage
+fi
+echo done
+
+## read PARAMETER file
+echo -n "Read parameter files from previous H3K4me1 and H3K4me3 analysis (`date`).. "
+if [ -f "$ME1/PARAMETERS" ]; then
+    ME1_BAM_REP1=$(grep "input BAM file (Rep1)" $ME1/PARAMETERS | cut -f 2 -d ":" | sed -E 's/\s+//g');
+    ME1_BAM_REP2=$(grep "input BAM file (Rep2)" $ME1/PARAMETERS | cut -f 2 -d ":" | sed -E 's/\s+//g');
+    ME1_HISTONE=$(grep "histone peak region file" $ME1/PARAMETERS | cut -f 2 -d ":" | sed -E 's/\s+//g');
+    ME1_EXTEND_REP1=$(grep "extend 3' end of reads (Rep1)" $ME1/PARAMETERS | cut -f 2 -d ":" | sed -E 's/\s+//g');
+    ME1_EXTEND_REP2=$(grep "extend 3' end of reads (Rep2)" $ME1/PARAMETERS | cut -f 2 -d ":" | sed -E 's/\s+//g');
+else
+    echo "file $ME1/PARAMETERS do not exist.. "
+    echo
+    exit
+fi
+
+if [ -f "$ME1/sizeFactor" ]; then
+    ME1_SIZEFACTOR_REP1=$(head -n 1 $ME1/sizeFactor | cut -f 2)
+    ME1_SIZEFACTOR_REP2=$(head -n 2 $ME1/sizeFactor | tail -n 1 | cut -f 2)
+else
+    echo "file $ME1/sizeFactor do not exist.. "
+    echo
+    exit
+fi
+
+if [ -f "$ME3/PARAMETERS" ]; then
+    ME3_BAM_REP1=$(grep "input BAM file (Rep1)" $ME3/PARAMETERS | cut -f 2 -d ":" | sed -E 's/\s+//g');
+    ME3_BAM_REP2=$(grep "input BAM file (Rep2)" $ME3/PARAMETERS | cut -f 2 -d ":" | sed -E 's/\s+//g');
+    ME3_HISTONE=$(grep "histone peak region file" $ME3/PARAMETERS | cut -f 2 -d ":" | sed -E 's/\s+//g');
+    ME3_EXTEND_REP1=$(grep "extend 3' end of reads (Rep1)" $ME3/PARAMETERS | cut -f 2 -d ":" | sed -E 's/\s+//g');
+    ME3_EXTEND_REP2=$(grep "extend 3' end of reads (Rep2)" $ME3/PARAMETERS | cut -f 2 -d ":" | sed -E 's/\s+//g');
+else
+    echo "file $ME3/PARAMETERS do not exist.. "
+    echo
+    exit
+fi
+
+if [ -f "$ME3/sizeFactor" ]; then
+    ME3_SIZEFACTOR_REP1=$(head -n 1 $ME3/sizeFactor | cut -f 2)
+    ME3_SIZEFACTOR_REP2=$(head -n 2 $ME3/sizeFactor | tail -n 1 | cut -f 2)
+else
+    echo "file $ME3/sizeFactor do not exist.. "
+    echo
+    exit
+fi
+
+if [ ! -f "$ME1_BAM_REP1" -o ! -f "$ME1_BAM_REP2" -o ! -f "$ME1_HISTONE" -o -z "$ME1_SIZEFACTOR_REP1" -o -z "$ME1_SIZEFACTOR_REP2" -o ! -f "$ME3_BAM_REP1" -o ! -f "$ME3_BAM_REP2" -o ! -f "$ME3_HISTONE" -o -z "$ME3_SIZEFACTOR_REP1" -o -z "$ME3_SIZEFACTOR_REP2" ]; then
+    echo "One or more input files (bam and histone) derived from PARAMETERS or sizeFactor file do not exist"
+    echo 
+    exit
+fi
+echo "done"
+
+echo -n "Merge bam and histone files from previous H3K4me1 and H3K4me3 analysis (`date`).. "
+if [ ! -f "$OUTDIR/mergedInputFiles/h3k4_Rep1.bam" ]; then
+    samtools merge $OUTDIR/mergedInputFiles/h3k4_Rep1.bam <(bedtools bamtobed -i $ME1_BAM_REP1 | perl -ane 'if($F[0]!~/^chr[0-9a-zA-Z]+$/) { next; } print $_;' | bedtools slop -i stdin -g $GENOME_FILE -s -l 0 -r $ME1_EXTEND_REP1 | bedtools bedtobam -i stdin -g $GENOME_FILE) <(bedtools bamtobed -i $ME3_BAM_REP1 | perl -ane 'if($F[0]!~/^chr[0-9a-zA-Z]+$/) { next; } print $_;' | bedtools slop -i stdin -g $GENOME_FILE -s -l 0 -r $ME3_EXTEND_REP1 | bedtools bedtobam -i stdin -g $GENOME_FILE)
+    samtools sort $OUTDIR/mergedInputFiles/h3k4_Rep1.bam $OUTDIR/mergedInputFiles/h3k4_Rep1_sort
+    mv $OUTDIR/mergedInputFiles/h3k4_Rep1_sort.bam $OUTDIR/mergedInputFiles/h3k4_Rep1.bam
+    samtools index $OUTDIR/mergedInputFiles/h3k4_Rep1.bam
+fi
+BAM_REP1=$OUTDIR/mergedInputFiles/h3k4_Rep1.bam
+
+if [ ! -f "$OUTDIR/mergedInputFiles/h3k4_Rep2.bam" ]; then
+    samtools merge $OUTDIR/mergedInputFiles/h3k4_Rep2.bam <(bedtools bamtobed -i $ME1_BAM_REP2 | perl -ane 'if($F[0]!~/^chr[0-9a-zA-Z]+$/) { next; } print $_;' | bedtools slop -i stdin -g $GENOME_FILE -s -l 0 -r $ME1_EXTEND_REP2 | bedtools bedtobam -i stdin -g $GENOME_FILE) <(bedtools bamtobed -i $ME3_BAM_REP2 | perl -ane 'if($F[0]!~/^chr[0-9a-zA-Z]+$/) { next; } print $_;' | bedtools slop -i stdin -g $GENOME_FILE -s -l 0 -r $ME3_EXTEND_REP2 | bedtools bedtobam -i stdin -g $GENOME_FILE)
+    samtools sort $OUTDIR/mergedInputFiles/h3k4_Rep2.bam $OUTDIR/mergedInputFiles/h3k4_Rep2_sort
+    mv $OUTDIR/mergedInputFiles/h3k4_Rep2_sort.bam $OUTDIR/mergedInputFiles/h3k4_Rep2.bam
+    samtools index $OUTDIR/mergedInputFiles/h3k4_Rep2.bam
+fi
+BAM_REP2=$OUTDIR/mergedInputFiles/h3k4_Rep2.bam
+
+if [ ! -f "$OUTDIR/mergedInputFiles/h3k4.regionPeak.gz" ]; then
+    zless $ME1_HISTONE $ME3_HISTONE | sortBed -i stdin | mergeBed -i stdin | gzip > $OUTDIR/mergedInputFiles/h3k4.regionPeak.gz
+fi
+HISTONE=$OUTDIR/mergedInputFiles/h3k4.regionPeak.gz
+echo "done"
+
+## print initital parameters to file
+DATE=`date`
+echo "#timestamp: $DATE
+#H3K4me1 BAM file (Rep1): $ME1_BAM_REP1
+#H3K4me1 BAM file (Rep2): $ME1_BAM_REP2
+#H3K4me3 BAM file (Rep1): $ME3_BAM_REP1
+#H3K4me3 BAM file (Rep2): $ME3_BAM_REP2
+#H3K4me1 histone file: $ME1_HISTONE
+#H3K4me3 histone file: $ME3_HISTONE
+#H3K4me1 extend read parameter (Rep1): $ME1_EXTEND_REP1
+#H3K4me1 extend read parameter (Rep2): $ME1_EXTEND_REP2
+#H3K4me3 extend read parameter (Rep1): $ME3_EXTEND_REP1
+#H3K4me3 extend read parameter (Rep2): $ME3_EXTEND_REP2
+#H3K4me1 size factor (Rep1): $ME1_SIZEFACTOR_REP1
+#H3K4me1 size factor (Rep2): $ME1_SIZEFACTOR_REP2
+#H3K4me3 size factor (Rep1): $ME3_SIZEFACTOR_REP1
+#H3K4me3 size factor (Rep2): $ME3_SIZEFACTOR_REP2
+#minimum length of NFR: $MINNFRLENGTH
+#maximum length of NFR: $MAXNFRLENGTH
+#FDR at which to select significant NFR: $NFR_THRESHOLD
+#number of times NFR regions should be shuffled: $SHUFFLECOUNT
+#reference genome: $GENOME
+#output directory: $OUTDIR
+#merged BAM file (Rep1): $BAM_REP1
+#merged BAM file (Rep2): $BAM_REP2
+#merged histone file: $HISTONE" > $OUTDIR/PARAMETERS
+
+echo -n "Initialize size factor file (`date`).. "
+perl -e '$sf_rep1=('$ME1_SIZEFACTOR_REP1'+'$ME3_SIZEFACTOR_REP1')/2; $sf_rep2=('$ME1_SIZEFACTOR_REP2'+'$ME3_SIZEFACTOR_REP2')/2; printf("h3k4_rep1\t%0.2f\nh3k4_rep2\t%0.2f\n", $sf_rep1, $sf_rep2);' > $OUTDIR/nfrDirectionAna/sizeFactor
+touch $OUTDIR/nfrDirectionAna/sizeFactorCount
+echo "done"
+
+echo -n "Initiate NFR prediction analysis (`date`).. "
+if [ ! -z "$PARALLEL" ]; then
+    nfrAnaAll -i $BAM_REP1 -j $BAM_REP2 -k $HISTONE -o $OUTDIR/nfrDirectionAna -m $GENOME -p -n $MINNFRLENGTH -v $MAXNFRLENGTH -t $NFR_THRESHOLD -u $SHUFFLECOUNT
+else
+    nfrAnaAll -i $BAM_REP1 -j $BAM_REP2 -k $HISTONE -o $OUTDIR/nfrDirectionAna -m $GENOME -n $MINNFRLENGTH -v $MAXNFRLENGTH -t $NFR_THRESHOLD -u $SHUFFLECOUNT
+fi
+echo "done"
+
+

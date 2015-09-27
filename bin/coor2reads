@@ -1,0 +1,139 @@
+#!/bin/bash
+#PBS -l nodes=1:ppn=4
+
+<<"copyright_info"
+coor2reads: given a coordinate, extract reads from one or more bam files
+Copyright (C) 2015  Sachin Pundhir (pundhir@binf.ku.dk)
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program.  If not, see <http://www.gnu.org/licenses/>.
+copyright_info
+
+GENOME="mm9"
+
+#### usage ####
+usage() {
+	echo Program: "coor2reads (given a coordinate, extract reads from one or more bam files)"
+	echo Author: BRIC, University of Copenhagen, Denmark
+	echo Version: 1.0
+	echo Contact: pundhir@binf.ku.dk
+	echo "Usage: coor2reads -c <coor> -b <file(s)>"
+	echo "Options:"
+	echo " -c <coor>   [genomic coordinate like 'chr:start-end' format]"
+    echo " -b <file>   [input mapped reads in BAM format]"
+    echo "             [if multiple seperate by a comma]"
+    echo "[OPTIONS]"
+    echo " -s <float>  [normalize expression by input size factor]"
+    echo "             [if multiple, seperate them by a comma]"
+    echo " -m          [normalize expression by counts per million mapped reads]"
+    echo " -d          [remove duplicate reads]"
+    echo " -e <int>    [extend 3' end of reads by input number of bases (useful for ChIP-seq data)]"
+    echo " -g <string> [genome (default: mm9)]"
+	echo " -h          [help]"
+	echo
+	exit 0
+}
+
+#### parse options ####
+while getopts c:b:s:mde:g:h ARG; do
+	case "$ARG" in
+		c) COOR=$OPTARG;;
+        b) INPUTBAMFILES=$OPTARG;;
+        s) INPUTSIZEFACTORS=$OPTARG;; 
+        m) CPM=1;;
+        d) REMOVE_DUPLICATE=1;;
+        e) INPUTEXTENDS=$OPTARG;;
+        g) GENOME=$OPTARG;;
+		h) HELP=1;;
+	esac
+done
+
+## usage, if necessary file and directories are given/exist
+if [ ! "$COOR" -o ! "$INPUTBAMFILES" -o "$HELP" ]; then
+	usage
+fi
+
+## populating files based on input genome
+GENOME_FILE=$(initialize_genome -i $PAREPATH/data/annotations/GENOME_FILE -g $GENOME)
+GENOME_FILE=$PAREPATH/data/annotations/$GENOME_FILE
+if [ ! -f "$GENOME_FILE" ]; then
+    echo
+    echo "computation for $GENOME is not feasible yet"
+    echo "please add the chromosome size file for $GENOME at $PAREPATH/data/annotations"
+    echo "also update the $PAREPATH/data/annotations/GENOME_FILE"
+    echo
+    usage
+fi
+
+## parse input bam files in an array
+IFS=","
+BAMFILES=($INPUTBAMFILES)
+BAMFILES_COUNT=${#BAMFILES[@]}
+IFS=""
+
+## initialize size factors, if both size factors and total reads not provided
+if [ -z "$INPUTSIZEFACTORS" -a -z "$CPM" ]; then
+    INPUTSIZEFACTORS=""
+    for(( i=0; i<$BAMFILES_COUNT; i++ )); do
+        INPUTSIZEFACTORS="$INPUTSIZEFACTORS,1"
+    done
+    INPUTSIZEFACTORS=`echo $INPUTSIZEFACTORS | perl -ane '$_=~s/^\,//g; print $_;'`;
+fi
+
+## initialize extend parameter, if not provided
+if [ -z "$INPUTEXTENDS" ]; then
+    INPUTEXTENDS=""
+    for(( i=0; i<$BAMFILES_COUNT; i++ )); do
+        INPUTEXTENDS="$INPUTEXTENDS,0"
+    done
+    INPUTEXTENDS=`echo $INPUTEXTENDS | perl -ane '$_=~s/^\,//g; print $_;'`;
+fi
+
+## parse extend parameter in an array
+IFS=","
+EXTENDS=($INPUTEXTENDS)
+EXTENDS_COUNT=${#EXTENDS[@]}
+IFS=""
+
+if [ ! -z "$INPUTSIZEFACTORS" ]; then
+    ## parse input size factors in an array
+    IFS=","
+    SIZEFACTORS=($INPUTSIZEFACTORS)
+    SIZEFACTORS_COUNT=${#SIZEFACTORS[@]}
+    IFS=""
+
+    if [ "$BAMFILES_COUNT" -ne "$SIZEFACTORS_COUNT" -o "$BAMFILES_COUNT" -ne "$EXTENDS_COUNT" ]; then
+        echo -n "Please provide size factor and extend parameter for each input bam file";
+        usage
+    fi
+
+    if [ -z "$REMOVE_DUPLICATE" ]; then
+        for(( i=0; i<$BAMFILES_COUNT; i++ )); do samtools view -b ${BAMFILES[$i]} $COOR | bedtools bamtobed -i - | bedtools slop -i stdin -g $GENOME_FILE -s -l 0 -r ${EXTENDS[$i]} | perl -ane '$F[4]=sprintf("%0.2f", 1/'${SIZEFACTORS[$i]}'); print "$F[0]\t$F[1]\t$F[2]\t$F[3]\t$F[4]\t$F[5]\n";'; done | sort -k 1n,1 -k 2n,2 -k 3n,3
+    else
+        for(( i=0; i<$BAMFILES_COUNT; i++ )); do samtools view -b ${BAMFILES[$i]} $COOR | bedtools bamtobed -i - | bedtools slop -i stdin -g $GENOME_FILE -s -l 0 -r ${EXTENDS[$i]} | perl -ane '$F[4]=sprintf("%0.2f", 1/'${SIZEFACTORS[$i]}'); print "$F[0]\t$F[1]\t$F[2]\tTAG\t$F[4]\t$F[5]\n";' | sort -k 1,1 -k 2n,2 -k 3n,3 | uniq; done | sort -k 1n,1 -k 2n,2 -k 3n,3
+    fi
+else
+    if [ -z "$REMOVE_DUPLICATE" ]; then
+        for(( i=0; i<$BAMFILES_COUNT; i++ )); do
+            MAPPEDREADS=`samtools idxstats ${BAMFILES[$i]} | grep -wE "^[0-9a-zA-Z]+" | perl -ane '$sum+=$F[2]; END { print "$sum"; }'`;
+            samtools view -b ${BAMFILES[$i]} $COOR | bedtools bamtobed -i - | bedtools slop -i stdin -g $GENOME_FILE -s -l 0 -r ${EXTENDS[$i]} | perl -ane '$F[4]=sprintf("%0.6f", ((1*1000000)/'${MAPPEDREADS}')); print "$F[0]\t$F[1]\t$F[2]\t$F[3]\t$F[4]\t$F[5]\n";';
+        done | sort -k 1n,1 -k 2n,2 -k 3n,3
+    else
+        for(( i=0; i<$BAMFILES_COUNT; i++ )); do
+            MAPPEDREADS=`samtools idxstats ${BAMFILES[$i]} | grep -wE "^[0-9a-zA-Z]+" | perl -ane '$sum+=$F[2]; END { print "$sum"; }'`;
+            #MAPPEDTAGS=`bedtools bamtobed -i ${BAMFILES[$i]} | bedtools slop -i stdin -g $GENOME_FILE -s -l 0 -r ${EXTENDS[$i]} | perl -ane 'print "$F[0]\t$F[1]\t$F[2]\tTAG\t1\t$F[5]\n";' | sort -k 1,1 -k 2n,2 -k 3n,3 | uniq | wc -l`;
+            samtools view -b ${BAMFILES[$i]} $COOR | bedtools bamtobed -i - | bedtools slop -i stdin -g $GENOME_FILE -s -l 0 -r ${EXTENDS[$i]} | perl -ane '$F[4]=sprintf("%0.6f", ((1*1000000)/'${MAPPEDREADS}')); print "$F[0]\t$F[1]\t$F[2]\tTAG\t$F[4]\t$F[5]\n";' | sort -k 1,1 -k 2n,2 -k 3n,3 | uniq;
+        done | sort -k 1n,1 -k 2n,2 -k 3n,3
+    fi
+fi
+exit

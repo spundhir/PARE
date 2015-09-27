@@ -1,0 +1,222 @@
+#!/bin/bash
+#PBS -l nodes=1:ppn=4
+
+<<"copyright_info"
+randomNfrAna: determine nfr dip for random nucleosome free regions using histone marks (two replicates)
+Copyright (C) 2015  Sachin Pundhir (pundhir@binf.ku.dk)
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program.  If not, see <http://www.gnu.org/licenses/>.
+copyright_info
+
+OUTDIR="nfr_random";
+GENOME="mm9"
+SHUFFLECOUNT=100000
+EXTEND_REP1=0
+EXTEND_REP2=0
+
+#### usage ####
+usage() {
+	echo Program: "randomNfrAna (determine nfr dip for random nucleosome free regions using histone marks (two replicates))"
+	echo Author: BRIC, University of Copenhagen, Denmark
+	echo Version: 1.0
+	echo Contact: pundhir@binf.ku.dk
+	echo "Usage: randomNfrAna -i <file> -j <file> -k <file> -l <file> [OPTIONS]"
+	echo "Options:"
+	echo " -i <file>   [mapped reads in BAM format (replicate 1)]"
+	echo " -j <file>   [mapped reads in BAM format (replicate 2)]"
+	echo " -k <file>   [optimal histone peaks region (regionPeak file)]"
+	echo " -l <file>   [nfr file created by nfrAna script]"
+    echo "[OPTIONS]"
+    echo " -o <dir>    [output directory to store results (default: ./nfr_random)"
+    echo " -p          [run in parallel by dividing nfr file into mutliple smaller files]"
+    echo " -m <string> [genome (default: mm9)]"
+    echo " -f <file>   [random NFRs should fall within these regions]"
+    echo " -n <int>    [total number of random NFRs (default: 100000)]"
+    echo " -c <int>    [extend 3' end of reads by input number of bases (replicate 1)]"
+    echo " -d <int>    [extend 3' end of reads by input number of bases (replicate 2)]"
+	echo " -h          [help]"
+	echo
+	exit 0
+}
+
+#### parse options ####
+while getopts i:j:k:l:o:pm:f:n:c:d:h ARG; do
+	case "$ARG" in
+		i) REP1=$OPTARG;;
+		j) REP2=$OPTARG;;
+		k) PEAKREGION=$OPTARG;;
+		l) NFRREGION=$OPTARG;;
+        o) OUTDIR=$OPTARG;;
+        p) PARALLEL=1;;
+        m) GENOME=$OPTARG;;
+        f) INCLREGION=$OPTARG;;
+        n) SHUFFLECOUNT=$OPTARG;;
+        c) EXTEND_REP1=$OPTARG;;
+        d) EXTEND_REP2=$OPTARG;;
+		h) HELP=1;;
+	esac
+done
+
+## usage, if necessary file and directories are given/exist
+if [ ! -f "$REP1" -o ! -f "$REP2" -o ! -f "$PEAKREGION" -o ! "$NFRREGION" -o "$HELP" ]; then
+	usage
+fi
+
+###################
+#helperfunction
+function wait_for_jobs_to_finish {
+    for job in `jobs -p`
+    do
+        echo $job
+        wait $job
+    done
+    echo $1
+}
+###############
+
+echo -n "Create directory structure.. "
+if [ ! -d "$OUTDIR" ]; then
+    mkdir $OUTDIR
+    mkdir $OUTDIR/parallel
+fi
+echo "done"
+
+
+echo -n "Populating files based on input genome ($GENOME)... "
+GENOME_FILE=$(initialize_genome -i $PAREPATH/data/annotations/GENOME_FILE -g $GENOME)
+GENOME_FILE=$PAREPATH/data/annotations/$GENOME_FILE
+if [ ! -f "$GENOME_FILE" ]; then
+    echo
+    echo "computation for $GENOME is not feasible yet"
+    echo "please add the chromosome size file for $GENOME at $PAREPATH/data/annotations"
+    echo "also update the $PAREPATH/data/annotations/GENOME_FILE"
+    echo
+    usage
+fi
+echo done
+
+## print header with choosen parameters
+echo "#input BAM file (Rep1): $REP1
+#input BAM file (Rep2): $REP2
+#input histone peak region file: $PEAKREGION
+#input NFR region file: $NFRREGION
+#output directory: $OUTDIR
+#reference genome: $GENOME
+#regions within which to include random regions: $INCLREGION
+#extend 3' end of reads (Rep1): $EXTEND_REP1
+#extend 3' end of reads (Rep2): $EXTEND_REP2" > $OUTDIR/PARAMETERS
+
+## index bam files and estimate size factors
+echo -n "Create index of input BAM files.. "
+if [ ! -e "$REP1.bai" ]; then
+    samtools index $REP1
+fi
+if [ ! -e "$REP2.bai" ]; then
+    samtools index $REP2
+fi
+echo "done"
+
+echo -n "Compute size factor for each replicate.. "
+if [ ! -e "$OUTDIR/sizeFactorCount" ]; then
+    estimateSizeFactor.pl -o b -b $REP1,$REP2 -x $PEAKREGION -r $OUTDIR/sizeFactorCount -p $PAREPATH/share/R/
+fi
+
+if [ ! -e "$OUTDIR/sizeFactor" ]; then
+    estimateSizeFactor.pl -o c -r $OUTDIR/sizeFactorCount > $OUTDIR/sizeFactor -p $PAREPATH/share/R/
+fi
+echo "done"
+
+SIZEFACTOR_REP1=`head -n 1 $OUTDIR/sizeFactor | cut -f 2`;
+SIZEFACTOR_REP2=`head -n 2 $OUTDIR/sizeFactor | tail -n 1 | cut -f 2`;
+
+## remove shuffled NFR file, if exists
+if [ -f "$OUTDIR/RANDOM_NFRREGION.BED" ]; then
+    rm $OUTDIR/RANDOM_NFRREGION.BED
+fi
+
+echo -n "determine increment factor to create random NFRs "
+readarray -t ARR_NFRREGION < $NFRREGION;
+
+INCREMENT_FACTOR=`perl -e '$frac='$SHUFFLECOUNT'/'${#ARR_NFRREGION[@]}'; if($frac>1) { print "2"; } else { print "1"; }'`;
+echo "(increment factor: $INCREMENT_FACTOR).. done";
+
+echo -n "create random NFR regions having length distribution similar to predicted ones.. "
+SEED=1
+if [ "$INCREMENT_FACTOR" -gt 1 ]; then
+    #for (( i=0; i<$SHUFFLECOUNT; i+=${#ARR_NFRREGION[@]} )); do
+    for (( i=0; i<$(( SHUFFLECOUNT*2 )); i+=${#ARR_NFRREGION[@]} )); do
+        if [ -s "$OUTDIR/RANDOM_NFRREGION.BED" ]; then
+            if [ -z "$INCLREGION" ]; then
+                bedtools shuffle -seed $SEED -noOverlapping -i $NFRREGION -g $GENOME_FILE -excl $OUTDIR/RANDOM_NFRREGION.BED >> $OUTDIR/RANDOM_NFRREGION.BED
+            else
+                #bedtools shuffle -seed $SEED -noOverlapping -i $NFRREGION -g $GENOME_FILE -incl $INCLREGION -excl $OUTDIR/RANDOM_NFRREGION.BED >> $OUTDIR/RANDOM_NFRREGION.BED
+                bedtools intersect -a <(bedtools shuffle -seed $SEED -noOverlapping -i $NFRREGION -g $GENOME_FILE -incl $INCLREGION -excl $OUTDIR/RANDOM_NFRREGION.BED) -b $INCLREGION -f 1.0 >> $OUTDIR/RANDOM_NFRREGION.BED
+            fi
+        else
+            if [ -z "$INCLREGION" ]; then
+                bedtools shuffle -seed $SEED -noOverlapping -i $NFRREGION -g $GENOME_FILE > $OUTDIR/RANDOM_NFRREGION.BED
+            else
+                #bedtools shuffle -seed $SEED -noOverlapping -i $NFRREGION -g $GENOME_FILE -incl $INCLREGION > $OUTDIR/RANDOM_NFRREGION.BED
+                bedtools intersect -a <(bedtools shuffle -seed $SEED -noOverlapping -i $NFRREGION -g $GENOME_FILE -incl $INCLREGION) -b $INCLREGION -f 1.0 > $OUTDIR/RANDOM_NFRREGION.BED
+            fi
+        fi
+        SEED=$(( SEED+10 ))
+    done
+<<"COMMENT"
+    for (( i=0; i<${#ARR_NFRREGION[@]}; i++ )); do
+        UPSTREAM_LENGTH=`echo ${ARR_NFRREGION[i]} | cut -f 10 -d " "`;
+        DOWNSTREAM_LENGTH=`echo ${ARR_NFRREGION[i]} | cut -f 12 -d " "`;
+        NFR_LENGTH=`echo ${ARR_NFRREGION[i]} | cut -f 14 -d " "`;
+
+        #echo -e "$UPSTREAM_LENGTH\t$DOWNSTREAM_LENGTH\t$NFR_LENGTH\t$INCREMENT_FACTOR";
+        if [ -s "$OUTDIR/RANDOM_NFRREGION.BED" ]; then
+            bedtools random -l $NFR_LENGTH -n $((INCREMENT_FACTOR*2)) -g $GENOME_FILE | bedtools shuffle -noOverlapping -i stdin -g $GENOME_FILE -incl $INCLREGION -excl $OUTDIR/RANDOM_NFRREGION.BED | head -n $INCREMENT_FACTOR | perl -ane 'chomp($_); print "$_\t'$UPSTREAM_LENGTH'\t'$DOWNSTREAM_LENGTH'\n";' >> $OUTDIR/RANDOM_NFRREGION.BED
+        else
+            bedtools random -l $NFR_LENGTH -n $INCREMENT_FACTOR -g $GENOME_FILE | perl -ane 'chomp($_); print "$_\t'$UPSTREAM_LENGTH'\t'$DOWNSTREAM_LENGTH'\n";' > $OUTDIR/RANDOM_NFRREGION.BED
+        fi
+    done
+COMMENT
+    bedtools sample -n $SHUFFLECOUNT -i $OUTDIR/RANDOM_NFRREGION.BED | cut -f 1,2,3,4,5,6,10,12 > $OUTDIR/RANDOM_NFRREGION.BED.tmp
+    #intersectBed -a $OUTDIR/RANDOM_NFRREGION.BED -b $OUTDIR/RANDOM_NFRREGION.BED -c | perl -ane 'if($F[14]==1) { print $_; }' | bedtools sample -n $SHUFFLECOUNT -i stdin | cut -f 1,2,3,4,5,6,10,12 > $OUTDIR/RANDOM_NFRREGION.BED.tmp 
+    mv $OUTDIR/RANDOM_NFRREGION.BED.tmp $OUTDIR/RANDOM_NFRREGION.BED
+else
+    if [ -z "$INCLREGION" ]; then
+        bedtools shuffle -seed $SEED -noOverlapping -i $NFRREGION -g $GENOME_FILE | bedtools sample -n $SHUFFLECOUNT -i stdin | cut -f 1,2,3,4,5,6,10,12 > $OUTDIR/RANDOM_NFRREGION.BED
+    else
+        bedtools shuffle -seed $SEED -noOverlapping -i $NFRREGION -g $GENOME_FILE -incl $INCLREGION | bedtools sample -n $SHUFFLECOUNT -i stdin | cut -f 1,2,3,4,5,6,10,12 > $OUTDIR/RANDOM_NFRREGION.BED
+    fi
+fi
+echo "done"
+
+## remove nfr dip score file, if exists
+if [ -f "$OUTDIR/RANDOM_NFRREGION.BED.SCORE" ]; then
+    rm $OUTDIR/RANDOM_NFRREGION.BED.SCORE
+fi
+
+echo -n "compute nfr dip for random NFR regions.. "
+if [ ! -z "$PARALLEL" ]; then
+    rm -r $OUTDIR/parallel/x*
+    indexBed.sh -i $OUTDIR/RANDOM_NFRREGION.BED -o $OUTDIR/parallel -x x
+
+    for file in `ls $OUTDIR/parallel/x*`; do
+        bed2nfrdip -i $file -j $REP1,$REP2 -k $SIZEFACTOR_REP1,$SIZEFACTOR_REP2 -o $file.score -e $EXTEND_REP1,$EXTEND_REP2 -g $GENOME &
+    done
+    wait
+    intersectBed -a <(cat $OUTDIR/parallel/x*score) -b $NFRREGION -v > $OUTDIR/RANDOM_NFRREGION.BED.SCORE
+else
+    bed2nfrdip -i $OUTDIR/RANDOM_NFRREGION.BED -j $REP1,$REP2 -k $SIZEFACTOR_REP1,$SIZEFACTOR_REP2 -o $OUTDIR/RANDOM_NFRREGION.BED.TMP -e $EXTEND_REP1,$EXTEND_REP2 -g $GENOME &
+    intersectBed -a $OUTDIR/RANDOM_NFRREGION.BED.TMP -b $NFRREGION -v > $OUTDIR/RANDOM_NFRREGION.BED.SCORE
+    rm $OUTDIR/RANDOM_NFRREGION.BED.TMP
+fi
+echo "done"

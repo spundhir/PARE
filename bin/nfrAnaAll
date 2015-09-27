@@ -1,0 +1,426 @@
+#!/bin/bash
+#PBS -l nodes=1:ppn=4
+
+<<"copyright_info"
+nfrAnaAll: determine nucleosome free regions using histone marks (two replicates)
+Copyright (C) 2015  Sachin Pundhir (pundhir@binf.ku.dk)
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program.  If not, see <http://www.gnu.org/licenses/>.
+copyright_info
+
+VERSION="0.02"
+OUTDIR="nfr";
+RANDOMDIR="nfr_random";
+DISTANCE=70
+SCALE="0.6"
+BLOCKHEIGHT="abs"
+MINNFRLENGTH=20
+MAXNFRLENGTH=1000
+NFR_THRESHOLD="0.05"
+GENOME="mm9"
+SHUFFLECOUNT="100000"
+EXTEND_REP1=0
+EXTEND_REP2=0
+BLOCK_BKG_PERCENTILE="0.0005"
+
+#### usage ####
+usage() {
+	echo Program: "nfrAnaAll (determine nucleosome free regions using histone marks (two replicates))"
+	echo Author: BRIC, University of Copenhagen, Denmark
+	echo Version: $VERSION
+	echo Contact: pundhir@binf.ku.dk
+	echo "Usage: nfrAnaAll -i <file> -j <file> -k <file> [OPTIONS]"
+	echo "Options:"
+	echo " -i <file>   [mapped reads in BAM format (replicate 1)]"
+	echo " -j <file>   [mapped reads in BAM format (replicate 2)]"
+	echo " -k <file>   [optimal histone peaks region (regionPeak file)]"
+    echo "             [NOTE: all the required input files should be provided as ABSOLUTE path]"
+    echo "[OPTIONS]"
+    echo " -o <dir>    [output directory to store results (default: nfr)"
+    echo " -r <dir>    [output directory to store results for randomly shuffled NFRs (default: nfr_random)"
+    echo " -f <file>   [optimal TF (cebpa) peaks summit (summit file)]"
+    echo "             [used to optimize -c and -e parameters]"
+    echo " -m <string> [genome (default: mm9)]"
+    echo " -p          [run in parallel]"
+    echo " -d          [shift 3' of reads to accomodate for fragment length]"
+    echo " -c <int>    [minimum number of read in the block group (default: auto compute)]"
+    echo " -e <int>    [minimum number of read in the block (default: auto compute)]"
+    echo " -x <int>    [maximum distance between the blocks (default: 70)]"
+    echo " -s <float>  [scale to define blocks (default: 0.6)]"
+    echo " -g <int>    [block height (abs or rel) (default: abs)]"
+    echo " -n <int>    [minimum length of nucleosome free region (default: 20)]"
+    echo " -v <int>    [maximum length of nucleosome free region (default: 1000)]"
+    echo " -t <float>  [FDR at which to consider a NFR as significant (default: 0.05)]"
+    echo " -u <int>    [number of times NFR regions should be shuffled to compute p-values (default: 100000)]"
+    echo " -z <float>  [percentile cutoff to optimize blockbuster threshold (default: 0.0005)]"
+	echo " -h          [help]"
+	echo
+	exit 0
+}
+
+#### parse options ####
+while getopts i:j:k:o:r:f:m:pdc:e:x:s:g:n:v:t:u:z:h ARG; do
+	case "$ARG" in
+		i) REP1=$OPTARG;;
+		j) REP2=$OPTARG;;
+		k) PEAKREGION=$OPTARG;;
+        o) OUTDIR=$OPTARG;;
+        r) RANDOMDIR=$OPTARG;;
+        f) TFSUMMIT=$OPTARG;;
+        m) GENOME=$OPTARG;;
+        p) PARALLEL=1;;
+        d) EXTEND=1;;
+        c) MINCLUSTERHEIGHT=$OPTARG;;
+        e) MINBLOCKHEIGHT=$OPTARG;;
+        x) DISTANCE=$OPTARG;;
+        s) SCALE=$OPTARG;;
+        g) BLOCKHEIGHT=$OPTARG;;
+        n) MINNFRLENGTH=$OPTARG;;
+        v) MAXNFRLENGTH=$OPTARG;;
+        t) NFR_THRESHOLD=$OPTARG;;
+        u) SHUFFLECOUNT=$OPTARG;;
+        z) BLOCK_BKG_PERCENTILE=$OPTARG;;
+		h) HELP=1;;
+	esac
+done
+
+echo
+if [ "$HELP" ]; then
+    usage
+fi
+
+echo
+echo -n "Check, if all required parameters and files are provided (`date`).. "
+## usage, if necessary file and directories are given/exist
+if [ ! -f "$REP1" -o ! -f "$REP2" -o ! -f "$PEAKREGION" ]; then
+    echo
+    echo "Error: one or more required paramter values not provided"
+    echo
+	usage
+fi
+echo "done"
+
+###################
+#helperfunction
+function wait_for_jobs_to_finish {
+    for job in `jobs -p`
+    do
+        echo $job
+        wait $job
+    done
+    echo $1
+}
+###############
+
+echo -n "Create directory structure (`date`).. "
+if [ ! -d "$OUTDIR" ]; then
+    mkdir -p $OUTDIR
+fi
+
+if [ ! -d "$OUTDIR/rep1" ]; then
+    mkdir $OUTDIR/rep1/
+    mkdir $OUTDIR/rep2/
+    mkdir $OUTDIR/logs/
+    mkdir $OUTDIR/$RANDOMDIR
+fi
+echo "done"
+
+echo -n "Populating files based on input genome, $GENOME (`date`).. "
+GENOME_FILE=$(initialize_genome -i $PAREPATH/data/annotations/GENOME_FILE -g $GENOME)
+GENOME_FILE=$PAREPATH/data/annotations/$GENOME_FILE
+if [ ! -f "$GENOME_FILE" ]; then
+    echo
+    echo "computation for $GENOME is not available yet"
+    echo "please add the chromosome size file for $GENOME at $PAREPATH/data/annotations"
+    echo "also update the $PAREPATH/data/annotations/GENOME_FILE"
+    echo
+    usage
+fi
+
+if [ "$GENOME" == "mm9" ]; then
+    GENOME_MACS2="mm"
+elif [ "$GENOME" == "mm10" ]; then
+    GENOME_MACS2="mm"
+elif [ "$GENOME" == "hg19" ]; then
+    GENOME_MACS2="hs"
+elif [ "$GENOME" == "hg38" ]; then
+    GENOME_MACS2="hs"
+fi
+echo done
+
+echo -n "Determine number of bases by which to extend the 3' end of reads (`date`).. "
+if [ ! -z "$EXTEND" -a ! -s "$OUTDIR/extendReads" ]; then
+    if [ ! -z "$GENOME_MACS2" ]; then
+        macs2 predictd -i $REP1 -g $GENOME_MACS2 --outdir $OUTDIR/logs/ 2>$OUTDIR/logs/predictd.rep1 &
+
+        macs2 predictd -i $REP2 -g $GENOME_MACS2 --outdir $OUTDIR/logs/ 2>$OUTDIR/logs/predictd.rep2 &
+    else
+        macs2 predictd -i $REP1 --outdir $OUTDIR/logs/ 2>$OUTDIR/logs/predictd.rep1 &
+
+        macs2 predictd -i $REP2 --outdir $OUTDIR/logs/ 2>$OUTDIR/logs/predictd.rep2 &
+    fi
+
+    wait
+
+    FRAGMENTLENGTH_REP1=`cat $OUTDIR/logs/predictd.rep1 | grep "predicted fragment length" | perl -ane 'print $F[scalar(@F)-2];'`
+    EXTEND_REP1=`echo $FRAGMENTLENGTH_REP1 | perl -ane 'printf("%0.0f", $_/2);'`
+
+    FRAGMENTLENGTH_REP2=`cat $OUTDIR/logs/predictd.rep2 | grep "predicted fragment length" | perl -ane 'print $F[scalar(@F)-2];'`
+    EXTEND_REP2=`echo $FRAGMENTLENGTH_REP2 | perl -ane 'printf("%0.0f", $_/2);'`
+
+    echo -e "#extend (rep1)\textend (rep2)\tfragmentLength (rep1)\tfragmentLength (rep2)
+    $EXTEND_REP1\t$EXTEND_REP2\t$FRAGMENTLENGTH_REP1\t$FRAGMENTLENGTH_REP2" > $OUTDIR/extendReads
+elif [ ! -z "$EXTEND" ]; then
+    echo -n "initialize extend parameters (nfr/extendReads exists).. "
+    EXTEND_REP1=`grep -v "^\#" $OUTDIR/extendReads | perl -ane 'print "$F[0]";'`;
+    EXTEND_REP2=`grep -v "^\#" $OUTDIR/extendReads | perl -ane 'print "$F[1]";'`;
+else
+    echo -n "extension parameter (-d) not set. doing no extension of reads.. "
+fi
+echo "done"
+
+## auto-compute the threshold for minimum number of reads in a block group
+## initialize -c, -e parameters, if their optimal values are computed
+if [ ! -z "$MINCLUSTERHEIGHT" ]; then
+    MINBLOCKHEIGHT=$MINCLUSTERHEIGHT
+elif [ ! -z "$MINBLOCKHEIGHT" ]; then
+    MINCLUSTERHEIGHT=$MINBLOCKHEIGHT
+fi
+
+if [ ! -s "$OUTDIR/optimizeThreshold/blockbuster_threshold.txt" ] && [ -z "$MINCLUSTERHEIGHT" -o -z "$MINBLOCKHEIGHT" ]; then
+    echo -n "Optimize the threshold for max length and min number of reads in a block group (`date`).. "
+    OPTION=0
+    if [ -f "$TFSUMMIT" ]; then
+        echo "command: blockbuster_threshold_nfr -i $REP1 -j $REP2 -k $PEAKREGION -l $TFSUMMIT -o $OUTDIR/optimizeThreshold -n $OUTDIR -g $GENOME -p $OPTION -c $EXTEND_REP1 -d $EXTEND_REP2 -z $BLOCK_BKG_PERCENTILE" >$OUTDIR/logs/blockbuster_threshold_nfr.log
+        blockbuster_threshold_nfr -i $REP1 -j $REP2 -k $PEAKREGION -l $TFSUMMIT -o $OUTDIR/optimizeThreshold -n $OUTDIR -g $GENOME -p $OPTION -c $EXTEND_REP1 -d $EXTEND_REP2 -z $BLOCK_BKG_PERCENTILE &>>$OUTDIR/logs/blockbuster_threshold_nfr.log
+    else
+        echo "command: blockbuster_threshold_nfr -i $REP1 -j $REP2 -k $PEAKREGION -o $OUTDIR/optimizeThreshold -n $OUTDIR -g $GENOME -p $OPTION -c $EXTEND_REP1 -d $EXTEND_REP2 -z $BLOCK_BKG_PERCENTILE" >$OUTDIR/logs/blockbuster_threshold_nfr.log
+        blockbuster_threshold_nfr -i $REP1 -j $REP2 -k $PEAKREGION -o $OUTDIR/optimizeThreshold -n $OUTDIR -g $GENOME -p $OPTION -c $EXTEND_REP1 -d $EXTEND_REP2 -z $BLOCK_BKG_PERCENTILE &>>$OUTDIR/logs/blockbuster_threshold_nfr.log
+    fi
+    HEIGHT_THRESHOLD=`grep -v "^\#" $OUTDIR/optimizeThreshold/blockbuster_threshold.txt | perl -ane 'print "$F[3]";'`;
+    MINCLUSTERHEIGHT=$HEIGHT_THRESHOLD
+    MINBLOCKHEIGHT=$HEIGHT_THRESHOLD
+    echo "done"
+elif [ -s "$OUTDIR/optimizeThreshold/blockbuster_threshold.txt" ]; then
+    echo -n "initialize -c, -e parameters ($OUTDIR/optimizeThreshold/blockbuster_threshold.txt exists) (`date`).. "
+    HEIGHT_THRESHOLD=`grep -v "^\#" $OUTDIR/optimizeThreshold/blockbuster_threshold.txt | perl -ane 'print "$F[3]";'`;
+    MINCLUSTERHEIGHT=$HEIGHT_THRESHOLD
+    MINBLOCKHEIGHT=$HEIGHT_THRESHOLD
+    echo "done"
+fi
+
+## print chosen parameters to file
+DATE=`date`
+echo "#timestamp: $DATE
+#version: $VERSION
+#input BAM file (Rep1): $REP1
+#input BAM file (Rep2): $REP2
+#input histone peak region file: $PEAKREGION
+#output directory: $OUTDIR
+#output directory for randomly shuffled NFR: $OUTDIR/$RANDOMDIR
+#minimum reads in block group: $MINCLUSTERHEIGHT
+#minimum reads in block: $MINBLOCKHEIGHT
+#minimum distance between the blocks: $DISTANCE
+#scale to define blocks: $SCALE
+#block height: $BLOCKHEIGHT
+#minimum length of NFR: $MINNFRLENGTH
+#maximum length of NFR: $MAXNFRLENGTH
+#FDR at which to select significant NFR: $NFR_THRESHOLD
+#number of times NFR regions should be shuffled: $SHUFFLECOUNT 
+#optimal TF peak summit file: $TFSUMMIT
+#reference genome: $GENOME
+#extend 3' end of reads (Rep1): $EXTEND_REP1
+#extend 3' end of reads (Rep2): $EXTEND_REP2" > $OUTDIR/PARAMETERS
+
+<<"COMMENT1"
+COMMENT1
+## index bam files and estimate size factors
+echo -n "Create index of input BAM files (`date`).. "
+if [ ! -e "$REP1.bai" ]; then
+    samtools index $REP1
+fi
+if [ ! -e "$REP2.bai" ]; then
+    samtools index $REP2
+fi
+echo "done"
+
+echo -n "Compute size factor for each replicate (`date`).. "
+if [ ! -e "$OUTDIR/sizeFactor" ]; then
+    estimateSizeFactor.pl -o b -b $REP1,$REP2 -x $PEAKREGION -r $OUTDIR/sizeFactorCount -e $EXTEND_REP1,$EXTEND_REP2 -g $GENOME -p $PAREPATH/share/R/
+    estimateSizeFactor.pl -o c -r $OUTDIR/sizeFactorCount -p $PAREPATH/share/R/ > $OUTDIR/sizeFactor
+fi
+echo "done"
+
+SIZEFACTOR_REP1=`head -n 1 $OUTDIR/sizeFactor | cut -f 2`;
+SIZEFACTOR_REP2=`head -n 2 $OUTDIR/sizeFactor | tail -n 1 | cut -f 2`;
+
+## convert input bam file into bed
+echo -n "convert input bam file into bed (`date`).. "
+ID_REP1=`echo $REP1 | perl -ane '$_=~s/^.*\///g; $_=~s/\.gz$//g; print $_;'`;
+ID_REP2=`echo $REP2 | perl -ane '$_=~s/^.*\///g; $_=~s/\.gz$//g; print $_;'`;
+
+if [ ! -s "$OUTDIR/$ID_REP1.bed" ]; then
+    bam2bedForChIP -i $REP1 -o $OUTDIR/$ID_REP1.bed -s $SIZEFACTOR_REP1 -d -e $EXTEND_REP1 -g $GENOME
+else
+    echo -n "($OUTDIR/$ID_REP1.bed already exists).. "
+fi
+REP1_BED="$OUTDIR/$ID_REP1.bed"
+
+if [ ! -s "$OUTDIR/$ID_REP2.bed" ]; then
+    bam2bedForChIP -i $REP2 -o $OUTDIR/$ID_REP2.bed -s $SIZEFACTOR_REP2 -d -e $EXTEND_REP2 -g $GENOME
+else
+    echo -n "($OUTDIR/$ID_REP2.bed already exists).. "
+fi
+REP2_BED="$OUTDIR/$ID_REP2.bed"
+wait_for_jobs_to_finish "convert input bam file into bed"
+
+if [ ! -s "$OUTDIR/$ID_REP1.bed" -o ! -s "$OUTDIR/$ID_REP2.bed" ]; then
+    echo
+    echo "Error: bed files $OUTDIR/$ID_REP1.bed or $OUTDIR/$ID_REP2.bed not defined correctly"
+    exit
+else
+    NCOL_REP1=$(awk -F'\t' '{print NF;}' $OUTDIR/$ID_REP1.bed | uniq | wc -l)
+    NCOL_REP2=$(awk -F'\t' '{print NF;}' $OUTDIR/$ID_REP2.bed | uniq | wc -l)
+    if [ "$NCOL_REP1" -gt 1 -o "$NCOL_REP2" -gt 1 ]; then
+        echo
+        echo "Error: bed files $OUTDIR/$ID_REP1.bed or $OUTDIR/$ID_REP2.bed not defined correctly"
+        exit
+    fi
+fi
+echo "done"
+
+## input parameters are ready. start NFR analysis
+if [ -z "$PARALLEL" ]; then
+    echo -n "Predict nucleosome free regions (NFR) for replicate 1 (`date`).. "
+    NFRFILE_REP1=`findNFRAll.pl -s $REP1_BED -b $REP1 -o $OUTDIR/rep1/ -z $SIZEFACTOR_REP1 -c $MINCLUSTERHEIGHT -k $MINBLOCKHEIGHT -x $DISTANCE -l $SCALE -g $BLOCKHEIGHT -n $MINNFRLENGTH -v $MAXNFRLENGTH -e $EXTEND_REP1 -y $GENOME`;
+    echo "done"
+
+    echo -n "Predict nucleosome free regions (NFR) for replicate 2 (`date`).. "
+    NFRFILE_REP2=`findNFRAll.pl -s $REP2_BED -b $REP2 -o $OUTDIR/rep2/ -z $SIZEFACTOR_REP2 -c $MINCLUSTERHEIGHT -k $MINBLOCKHEIGHT -x $DISTANCE -l $SCALE -g $BLOCKHEIGHT -n $MINNFRLENGTH -v $MAXNFRLENGTH -e $EXTEND_REP2 -y $GENOME`;
+    echo "done"
+
+    echo -n "Determine common NFR between replicate 1 and 2 (`date`).. "
+    commonNFR.pl -i $NFRFILE_REP1 -j $NFRFILE_REP2 -k $REP1 -l $REP2 -m $SIZEFACTOR_REP1 -n $SIZEFACTOR_REP2 -o $OUTDIR -g $MINNFRLENGTH -c $EXTEND_REP1 -d $EXTEND_REP2 -y $GENOME
+    echo "done"
+else
+    echo -n "Split summit file(s) into multiple smaller files (`date`).. "
+    if [ ! -d "$OUTDIR/parallel" ]; then
+        mkdir $OUTDIR/parallel
+        mkdir $OUTDIR/parallel/rep1
+        mkdir $OUTDIR/parallel/rep2
+        mkdir $OUTDIR/common/
+    fi
+    indexBed.sh -i $REP1_BED -o $OUTDIR/parallel/rep1 -x x
+    indexBed.sh -i $REP2_BED -o $OUTDIR/parallel/rep2 -x x
+    echo "done"
+
+    echo -n "Predict nucleosome free regions (NFR) for replicate 1 and 2 (`date`).. "
+
+    ls $OUTDIR/parallel/rep1/x* | parallel -j 50 findNFRAll.pl -s {} -b $REP1 -o $OUTDIR/rep1/ -z $SIZEFACTOR_REP1 -f {/.} -c $MINCLUSTERHEIGHT -k $MINBLOCKHEIGHT -x $DISTANCE -l $SCALE -g $BLOCKHEIGHT -n $MINNFRLENGTH -v $MAXNFRLENGTH -e $EXTEND_REP1 -y $GENOME
+
+
+   ls $OUTDIR/parallel/rep2/x* | parallel -j 50 findNFRAll.pl -s {} -b $REP2 -o $OUTDIR/rep2/ -z $SIZEFACTOR_REP2 -f {/.} -c $MINCLUSTERHEIGHT -k $MINBLOCKHEIGHT -x $DISTANCE -l $SCALE -g $BLOCKHEIGHT -n $MINNFRLENGTH -v $MAXNFRLENGTH -e $EXTEND_REP2 -y $GENOME
+
+    echo "done"
+
+    echo -n "Determine common NFR between replicate 1 and 2 (`date`).. "
+    ID_REP1=`echo $REP1 | perl -ane '$_=~s/^.*\///g; $_=~s/\.gz$//g; print $_;'`;
+    ID_REP2=`echo $REP2 | perl -ane '$_=~s/^.*\///g; $_=~s/\.gz$//g; print $_;'`;
+
+    ls $OUTDIR/parallel/rep2/x* | parallel -j 50 commonNFR.pl -i $OUTDIR/rep1/$ID_REP1.nfr.uniq{/.} -j $OUTDIR/rep2/$ID_REP2.nfr.uniq{/.} -k $REP1 -l $REP2 -m $SIZEFACTOR_REP1 -n $SIZEFACTOR_REP2 -o $OUTDIR/common/ -g $MINNFRLENGTH -c $EXTEND_REP1 -d $EXTEND_REP2 -y $GENOME -f {/.}
+
+    echo "done"
+
+    echo -n "Concatenate all result files into one file (`date`).. "
+    ID=`echo $REP1 | perl -ane '$_=~s/^.*\///g; $_=~s/Rep.*$//g; $_=~s/\_$//g; print $_;'`;
+
+    zless $OUTDIR/common/$ID.All.nfrx* > $OUTDIR/$ID.All.nfr
+
+    nfr2ucsc.pl -i $OUTDIR/$ID.All.nfr > $OUTDIR/$ID.All.nfr.ucsc
+    echo "done"
+fi
+
+## nfr analysis for randomly distributed nfr regions (associate p values)
+echo -n "check if size factor files already exist (`date`).. "
+if [ ! -d "$OUTDIR/$RANDOMDIR" ]; then
+    mkdir $OUTDIR/$RANDOMDIR
+fi
+
+if [ -s "$OUTDIR/sizeFactor" ]; then
+    scp $OUTDIR/sizeFactor $OUTDIR/$RANDOMDIR/sizeFactor
+    scp $OUTDIR/sizeFactorCount $OUTDIR/$RANDOMDIR/sizeFactorCount
+fi
+echo "done"
+
+if [ ! -s "$OUTDIR/$RANDOMDIR/INCLREGION.BED" ]; then
+    echo -n "create file containing genomic coordinates within which to randomly shuffle the NFRs (`date`).. "
+    ID_REP1=`echo $REP1 | perl -ane '$_=~s/^.*\///g; $_=~s/\.gz$//g; print $_;'`;
+    ID_REP2=`echo $REP2 | perl -ane '$_=~s/^.*\///g; $_=~s/\.gz$//g; print $_;'`;
+    #cat $OUTDIR/rep1/$ID_REP1.tmp* $OUTDIR/rep2/$ID_REP2.tmp* | cut -f 4 | perl -ane '@coor=split(/[\:\-]+/,$_); print "$coor[0]\t$coor[1]\t$coor[2]";' | sortBed -i stdin | mergeBed -i stdin > $OUTDIR/$RANDOMDIR/INCLREGION.BED
+    cat $OUTDIR/rep1/$ID_REP1.tmp* $OUTDIR/rep2/$ID_REP2.tmp* | cut -f 4 | perl -ane '@coor=split(/[\:\-]+/,$_); print "$coor[0]\t$coor[1]\t$coor[2]";' | sortBed -i stdin | mergeBed -i stdin -d $MAXNFRLENGTH > $OUTDIR/$RANDOMDIR/INCLREGION.BED
+    #cat $OUTDIR/rep1/$ID_REP1.nfrx* $OUTDIR/rep2/$ID_REP2.nfrx* | cut -f 4 | perl -ane '@coor=split(/[\:\-]+/,$_); print "$coor[0]\t$coor[1]\t$coor[2]";' | sortBed -i stdin | mergeBed -i stdin > $OUTDIR/$RANDOMDIR/INCLREGION.BED
+    echo "track name=\"Defined blocks ($ID_REP1.blocks)\" description=\"Defined blocks ($ID_REP1.blocks)\" itemRgb=\"On\"" > $OUTDIR/$ID_REP1.blocks.ucsc
+    cat $OUTDIR/rep1/$ID_REP1.tmp* >> $OUTDIR/$ID_REP1.blocks.ucsc
+    echo "track name=\"Defined blocks ($ID_REP2.blocks)\" description=\"Defined blocks ($ID_REP2.blocks)\" itemRgb=\"On\"" > $OUTDIR/$ID_REP2.blocks.ucsc
+    cat $OUTDIR/rep2/$ID_REP2.tmp* >> $OUTDIR/$ID_REP2.blocks.ucsc
+    echo "done"
+else
+    echo "randomly shuffled file ($OUTDIR/$RANDOMDIR/INCLREGION.BED) already exist (`date`).. done"
+fi
+
+echo -n "nfr analysis for randomly distributed nfr regions (`date`).. "
+ID=`echo $REP1 | perl -ane '$_=~s/^.*\///g; $_=~s/Rep.*$//g; $_=~s/\_$//g; print $_;'`;
+
+if [ ! -s "$OUTDIR/$RANDOMDIR/RANDOM_NFRREGION.BED" -o ! -s "$OUTDIR/$RANDOMDIR/RANDOM_NFRREGION.BED.SCORE" ]; then
+    randomNfrAna -i $REP1 -j $REP2 -k $PEAKREGION -l $OUTDIR/$ID.All.nfr -m $GENOME -o $OUTDIR/$RANDOMDIR -p -f $OUTDIR/$RANDOMDIR/INCLREGION.BED -n $SHUFFLECOUNT -c $EXTEND_REP1 -d $EXTEND_REP2 &>$OUTDIR/logs/nfrAna_random.log
+else
+    echo "($OUTDIR/$RANDOMDIR/RANDOM_NFRREGION.BED and $OUTDIR/$RANDOMDIR/RANDOM_NFRREGION.BED.SCORE already exists).. "
+fi
+
+if [ ! -s "$OUTDIR/$RANDOMDIR/RANDOM_NFRREGION.BED" -o ! -s "$OUTDIR/$RANDOMDIR/RANDOM_NFRREGION.BED.SCORE" ]; then
+    echo -n "(failed using 100,000 regions, try using 10000 regions).. "
+    ID=`echo $REP1 | perl -ane '$_=~s/^.*\///g; $_=~s/Rep.*$//g; $_=~s/\_$//g; print $_;'`;
+
+    SHUFFLECOUNT=10000
+    randomNfrAna -i $REP1 -j $REP2 -k $PEAKREGION -l $OUTDIR/$ID.All.nfr -m $GENOME -o $OUTDIR/$RANDOMDIR -p -f $OUTDIR/$RANDOMDIR/INCLREGION.BED -n $SHUFFLECOUNT -c $EXTEND_REP1 -d $EXTEND_REP2 &>$OUTDIR/logs/nfrAna_random.log
+fi
+
+if [ -s "$OUTDIR/$RANDOMDIR/RANDOM_NFRREGION.BED" -a -s "$OUTDIR/$RANDOMDIR/RANDOM_NFRREGION.BED.SCORE" ]; then
+    Rscript $PAREPATH/share/R/randomNfrAna.R $OUTDIR/$ID.All.nfr $OUTDIR/$RANDOMDIR/RANDOM_NFRREGION.BED.SCORE $OUTDIR/$ID.All.nfrP
+
+    perl -ane 'if($F[15]<'$NFR_THRESHOLD') { print $_; }' $OUTDIR/$ID.All.nfrP > $OUTDIR/$ID.All.nfr.sig
+else
+    cat $OUTDIR/$ID.All.nfr | perl -ane 'chomp($_); print "$_\tNA\tNA\tNA\n";' > $OUTDIR/$ID.All.nfrP
+    scp $OUTDIR/$ID.All.nfrP $OUTDIR/$ID.All.nfr.sig
+fi
+
+nfr2ucsc.pl -i $OUTDIR/$ID.All.nfr.sig > $OUTDIR/$ID.All.nfr.sig.ucsc
+echo "done"
+
+echo -n "convert input bam to bigWig format to visualize in UCSC browser (`date`).. "
+ID_REP1=`echo $REP1 | perl -ane '$_=~s/\.bam.*//g; print $_;'`;
+ID_REP2=`echo $REP2 | perl -ane '$_=~s/\.bam.*//g; print $_;'`;
+if [ ! -s "$ID_REP1.bw" ]; then
+    bam2bwForChIP -i $REP1 -c $GENOME_FILE -e $EXTEND_REP1 &
+else
+    echo -n "($ID_REP1.bw already exists..) "
+fi
+
+if [ ! -s "$ID_REP2.bw" ]; then
+    bam2bwForChIP -i $REP2 -c $GENOME_FILE -e $EXTEND_REP2 &
+else
+    echo -n "($ID_REP2.bw already exists..) "
+fi
+wait
+echo "All done. Bye"

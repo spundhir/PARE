@@ -1,0 +1,186 @@
+#!/bin/bash
+#PBS -l nodes=1:ppn=4
+
+<<"copyright_info"
+bed2coverage: compute read coverage corresponding to input BED file
+Copyright (C) 2015  Sachin Pundhir (pundhir@binf.ku.dk)
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program.  If not, see <http://www.gnu.org/licenses/>.
+copyright_info
+
+GENOME="mm9"
+AVG=0
+
+#### usage ####
+usage() {
+	echo Program: "bed2coverage (compute read coverage corresponding to input BED file)"
+	echo Author: BRIC, University of Copenhagen, Denmark
+	echo Version: 1.0
+	echo Contact: pundhir@binf.ku.dk
+	echo "Usage: bed2coverage -i <file | stdin> -j <file(s)>"
+	echo "Options:"
+	echo " -i <file>   [input file containing genomic coordinate in BED format]"
+    echo " -j <file>   [input mapped reads in BAM format]"
+    echo "             [if multiple seperate by a comma]"
+    echo "[OPTIONS]"
+    echo " -s <float>  [normalize expression by input size factor]"
+    echo "             [if multiple, seperate them by a comma]"
+    echo " -m          [normalize expression by counts per million mapped reads]"
+    echo " -d          [remove duplicate reads]"
+    echo " -e <int>    [extend 3' end of reads by input number of bases (useful for ChIP-seq data)]"
+    echo " -v <int>    [instead of giving expression for each replicate, output only the mean (deafult: 0)]"
+    echo "             [assumes that consecutive input files are replicates 1 and 2, respectively]"
+    echo " -r          [require same strandedness]"
+    echo " -g <string> [genome (default: mm9)]"
+	echo " -h          [help]"
+	echo
+	exit 0
+}
+
+#### parse options ####
+while getopts i:j:s:mde:g:v:rh ARG; do
+	case "$ARG" in
+		i) INPUTBEDFILE=$OPTARG;;
+        j) INPUTBAMFILES=$OPTARG;;
+        s) INPUTSIZEFACTORS=$OPTARG;; 
+        m) CPM=1;;
+        d) REMOVE_DUPLICATE=1;;
+        e) INPUTEXTENDS=$OPTARG;;
+        g) GENOME=$OPTARG;;
+        v) AVG=$OPTARG;;
+        r) SAME_STRAND=1;;
+		h) HELP=1;;
+	esac
+done
+
+## usage, if necessary file and directories are given/exist
+if [ -z "$INPUTBEDFILE" -o -z "$INPUTBAMFILES" -o "$HELP" ]; then
+	usage
+fi
+
+## populating files based on input genome
+GENOME_FILE=$(initialize_genome -i $PAREPATH/data/annotations/GENOME_FILE -g $GENOME)
+GENOME_FILE=$PAREPATH/data/annotations/$GENOME_FILE
+if [ ! -f "$GENOME_FILE" ]; then
+    echo
+    echo "computation for $GENOME is not feasible yet"
+    echo "please add the chromosome size file for $GENOME at $PAREPATH/data/annotations"
+    echo "also update the $PAREPATH/data/annotations/GENOME_FILE"
+    echo
+    usage
+fi
+
+## parse input bam files in an array
+oIFS=$IFS
+IFS=","
+BAMFILES=($INPUTBAMFILES)
+BAMFILES_COUNT=${#BAMFILES[@]}
+IFS=$oIFS
+
+## initialize size factors, if both size factors and total reads not provided
+if [ -z "$INPUTSIZEFACTORS" -a -z "$CPM" ]; then
+    INPUTSIZEFACTORS=""
+    for(( i=0; i<$BAMFILES_COUNT; i++ )); do
+        INPUTSIZEFACTORS="$INPUTSIZEFACTORS,1"
+    done
+    INPUTSIZEFACTORS=`echo $INPUTSIZEFACTORS | perl -ane '$_=~s/^\,//g; print $_;'`;
+fi
+
+## initialize extend parameter, if not provided
+if [ -z "$INPUTEXTENDS" ]; then
+    INPUTEXTENDS=""
+    for(( i=0; i<$BAMFILES_COUNT; i++ )); do
+        INPUTEXTENDS="$INPUTEXTENDS,0"
+    done
+    INPUTEXTENDS=`echo $INPUTEXTENDS | perl -ane '$_=~s/^\,//g; print $_;'`;
+fi
+
+## parse extend parameter in an array
+IFS=","
+EXTENDS=($INPUTEXTENDS)
+EXTENDS_COUNT=${#EXTENDS[@]}
+IFS=$oIFS
+
+## parse bam files in an array
+IFS=","
+INPUTBAMFILES=$(echo $INPUTBAMFILES | sed 's/\,/ /g')
+IFS=$oIFS
+
+## create temporary BED file if input is from stdin
+if [ "$INPUTBEDFILE" == "stdin" ]; then
+    TMP=$(cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w 32 | head -n 1)
+    while read LINE; do
+        echo ${LINE}
+    done | perl -ane '$line=""; foreach(@F) { $line.="$_\t"; } $line=~s/\t$//g; print "$line\n";' > $TMP
+    INPUTBEDFILE=$TMP
+fi
+
+if [ ! -z "$INPUTSIZEFACTORS" ]; then
+    ## parse input size factors in an array
+    IFS=","
+    SIZEFACTORS=($INPUTSIZEFACTORS)
+    SIZEFACTORS_COUNT=${#SIZEFACTORS[@]}
+    IFS=$oIFS
+
+    if [ "$BAMFILES_COUNT" -ne "$SIZEFACTORS_COUNT" -o "$BAMFILES_COUNT" -ne "$EXTENDS_COUNT" ]; then
+        echo -n "Please provide size factor and extend parameter for each input bam file";
+        usage
+    fi
+
+    if [ -z "$REMOVE_DUPLICATE" ]; then
+        if [ ! -z "$SAME_STRAND" ]; then
+            samtools bedcov $INPUTBEDFILE $INPUTBAMFILES
+        else
+            samtools bedcov $INPUTBEDFILE $INPUTBAMFILES
+        fi
+    else
+        if [ ! -z "$SAME_STRAND" ]; then
+            samtools bedcov $INPUTBEDFILE $INPUTBAMFILES
+        else
+            samtools bedcov $INPUTBEDFILE $INPUTBAMFILES
+        fi
+    fi | perl -ane '@sizeFactors=split(/\,/, "'$INPUTSIZEFACTORS'"); $field_count=scalar(@F)-'$BAMFILES_COUNT'; foreach(@F[0..$field_count-1]) { print "$_\t"; } $i=0; foreach(@F[$field_count..scalar(@F)-1]) { printf("%0.5f\t", $_/$sizeFactors[$i]); $i++; } print "\n";'
+else
+    MAPPEDREADS=""
+    for(( i=0; i<$BAMFILES_COUNT; i++ )); do
+        ## create index of input BAM file, if does not exist
+        if [ ! -f "${BAMFILES[$i]}.bai" ]; then
+            samtools index ${BAMFILES[$i]}
+        fi
+
+        COUNT=$(samtools idxstats ${BAMFILES[$i]} | grep -wE "^[0-9a-zA-Z]+" | perl -ane '$sum+=$F[2]; END { print "$sum"; }');
+        MAPPEDREADS="$MAPPEDREADS,$COUNT"
+    done
+    MAPPEDREADS=$(echo $MAPPEDREADS | perl -ane '$_=~s/^\,//g; print $_;')
+
+    #echo $MAPPEDREADS
+    if [ -z "$REMOVE_DUPLICATE" ]; then
+        if [ ! -z "$SAME_STRAND" ]; then
+            samtools bedcov $INPUTBEDFILE $INPUTBAMFILES
+        else
+            samtools bedcov $INPUTBEDFILE $INPUTBAMFILES
+        fi
+    else
+        if [ ! -z "$SAME_STRAND" ]; then
+            samtools bedcov $INPUTBEDFILE $INPUTBAMFILES
+        else
+            samtools bedcov $INPUTBEDFILE $INPUTBAMFILES
+        fi
+    fi | perl -ane '@mappedReads=split(/\,/, "'$MAPPEDREADS'"); $field_count=scalar(@F)-'$BAMFILES_COUNT'; foreach(@F[0..$field_count-1]) { print "$_\t"; } $i=0; foreach(@F[$field_count..scalar(@F)-1]) { printf("%0.5f\t", ($_*1000000)/$mappedReads[$i]); $i++; } print "\n";'
+fi | perl -ane 'if('$AVG') { $field_count=scalar(@F)-'$BAMFILES_COUNT'; foreach(@F[0..$field_count-1]) { print "$_\t"; } $i=0; for($i=$field_count; $i<scalar(@F); $i+=2) { if(!defined($F[$i+1])) { $F[$i+1]=$F[$i]; } printf("%0.5f\t", ($F[$i]+$F[$i+1])/2); } print "\n"; } else { print $_; }'
+
+if [ ! -z "$TMP" ]; then
+    rm $TMP
+fi
+exit

@@ -1,0 +1,151 @@
+#!/bin/bash
+#PBS -l nodes=1:ppn=4
+
+<<"copyright_info"
+coor2nfrdip: determine nfr dip for an input coordinate
+Copyright (C) 2015  Sachin Pundhir (pundhir@binf.ku.dk)
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program.  If not, see <http://www.gnu.org/licenses/>.
+copyright_info
+
+FLANK_WIN_UP=500
+FLANK_WIN_DOWN=500
+GENOME="mm9"
+
+#### usage ####
+usage() {
+    echo
+	echo Program: "coor2nfrdip (determine nfr dip for an input coordinate)"
+	echo Author: BRIC, University of Copenhagen, Denmark
+	echo Version: 1.0
+	echo Contact: pundhir@binf.ku.dk
+	echo "Usage: coor2nfrdip -i <coor> -j <file> -k <float> [OPTIONS]"
+	echo "Options:"
+    echo " -i <coor>   [input genomic coordinate of NFR (chr:start-end)]"
+    echo " -j <file>   [input mapped reads in BAM format]"
+    echo "             [if multiple seperate by a comma]"
+    echo " -k <float>  [size factor to normalize the expression of read block]"
+    echo "             [if multiple seperate by a comma]"
+    echo "[OPTIONS]"
+    echo " -l <int>    [length of the upstream flanking window (default: 500)]"
+    echo " -m <int>    [length of the downstream flanking window (default: 500)]"
+    echo " -e <int>    [extend 3' end of reads by input number of bases]"
+    echo "             [if multiple seperate by a comma]"
+    echo " -g <string> [genome (default: mm9)]"
+	echo " -h          [help]"
+	echo
+	exit 0
+}
+
+#### parse options ####
+while getopts i:j:k:l:m:e:g:h ARG; do
+	case "$ARG" in
+		i) COOR=$OPTARG;;
+		j) BAMFILE=$OPTARG;;
+		k) SIZEFACTOR=$OPTARG;;
+        l) FLANK_WIN_UP=$OPTARG;;
+        m) FLANK_WIN_DOWN=$OPTARG;;
+        e) EXTEND=$OPTARG;;
+        g) GENOME=$OPTARG;;
+		h) HELP=1;;
+	esac
+done
+
+## usage, if necessary file and directories are given/exist
+if [ -z "$COOR" -o -z "$BAMFILE" -o  -z "$SIZEFACTOR" -o "$HELP" ]; then
+	usage
+fi
+
+###################
+#helperfunction
+function wait_for_jobs_to_finish {
+    for job in `jobs -p`
+    do
+        echo $job
+        wait $job
+    done
+    echo $1
+}
+###############
+
+## check if input genome option is suitable
+GENOME_FILE=$(initialize_genome -i $PAREPATH/data/annotations/GENOME_FILE -g $GENOME)
+GENOME_FILE=$PAREPATH/data/annotations/$GENOME_FILE
+if [ ! -f "$GENOME_FILE" ]; then
+    echo
+    echo "computation for $GENOME is not feasible yet"
+    echo "please add the chromosome size file for $GENOME at $PAREPATH/data/annotations"
+    echo "also update the $PAREPATH/data/annotations/GENOME_FILE"
+    echo
+    usage
+fi
+
+## parse input bam files in an array
+IFS=","
+BAMFILES=($BAMFILE)
+BAMFILES_COUNT=${#BAMFILES[@]}
+IFS=""
+
+## parse input size factors in an array
+IFS=","
+SIZEFACTORS=($SIZEFACTOR)
+SIZEFACTORS_COUNT=${#SIZEFACTORS[@]}
+IFS=""
+
+## initialize extend parameter, if not provided
+if [ -z "$EXTEND" ]; then
+    EXTEND=""
+    for(( i=0; i<$BAMFILES_COUNT; i++ )); do
+        EXTEND="$EXTEND,0"
+    done
+    EXTEND=`echo $EXTEND | perl -ane '$_=~s/^\,//g; print $_;'`;
+fi
+
+## parse input size factors in an array
+IFS=","
+EXTENDS=($EXTEND)
+EXTENDS_COUNT=${#EXTENDS[@]}
+IFS=""
+
+if [ "$BAMFILES_COUNT" -ne "$SIZEFACTORS_COUNT" -o "$BAMFILES_COUNT" -ne "$EXTENDS_COUNT" ]; then
+    echo -n "Please provide size factor and extend parameter for each input bam file";
+    usage
+fi
+
+COOR_UPSTREAM=`echo $COOR | perl -ane '@coor=split(/[\:\-]+/,$_); $start=$coor[1]-'$FLANK_WIN_UP'; $end=$coor[1]-1; print "$coor[0]:$start-$end";'`;
+COOR_DOWNSTREAM=`echo $COOR | perl -ane '@coor=split(/[\:\-]+/,$_); $start=$coor[2]+1; $end=$coor[2]+'$FLANK_WIN_DOWN'; print "$coor[0]:$start-$end";'`;
+
+LENGTH=`echo $COOR | perl -ane '@coor=split(/[\:\-]+/,$_); $len=($coor[2]-$coor[1])+1; print "$len";'`;
+LENGTH_UPSTREAM=`echo $COOR_UPSTREAM | perl -ane '@coor=split(/[\:\-]+/,$_); $len=($coor[2]-$coor[1])+1; print "$len";'`;
+LENGTH_DOWNSTREAM=`echo $COOR_DOWNSTREAM | perl -ane '@coor=split(/[\:\-]+/,$_); $len=($coor[2]-$coor[1])+1; print "$len";'`;
+
+EXPR=`coor2expr -i $COOR -j $BAMFILE -k $SIZEFACTOR -d -e $EXTEND -g $GENOME`;
+EXPR_UPSTREAM=`coor2expr -i $COOR_UPSTREAM -j $BAMFILE -k $SIZEFACTOR -d -e $EXTEND -g $GENOME`;
+EXPR_DOWNSTREAM=`coor2expr -i $COOR_DOWNSTREAM -j $BAMFILE -k $SIZEFACTOR -d -e $EXTEND -g $GENOME`;
+
+NORM_EXPR=`perl -e '$expr='$EXPR'/'$LENGTH'; print "$expr";'`;
+
+## old scoring scheme
+#NORM_EXPR_UPSTREAM=`perl -e '$expr='$EXPR_UPSTREAM'/'$LENGTH_UPSTREAM'; print "$expr";'`;
+#NORM_EXPR_DOWNSTREAM=`perl -e '$expr='$EXPR_DOWNSTREAM'/'$LENGTH_DOWNSTREAM'; print "$expr";'`;
+
+#SCORE=`perl -e '$score=(('$NORM_EXPR_UPSTREAM'+'$NORM_EXPR_DOWNSTREAM')/'$NORM_EXPR'); printf("%0.4f", log($score));'`;
+
+## new scoring scheme
+EXPR_FLANKING=`perl -e '$expr='$EXPR_UPSTREAM'+'$EXPR_DOWNSTREAM'; print "$expr";'`;
+LENGTH_FLANKING=`perl -e '$len='$LENGTH_UPSTREAM'+'$LENGTH_DOWNSTREAM'; print "$len";'`;
+NORM_EXPR_FLANKING=`perl -e '$expr='$EXPR_FLANKING'/'$LENGTH_FLANKING'; print "$expr";'`;
+SCORE=`perl -e '$score=(('$NORM_EXPR_FLANKING')-'$NORM_EXPR'); printf("%0.4f", ($score));'`;
+
+echo $SCORE;

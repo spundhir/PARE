@@ -1,0 +1,145 @@
+#!/bin/bash
+#PBS -l nodes=1:ppn=4
+
+<<"copyright_info"
+bed2nfrdip: determine nfr dip for an input coordinates in BED format
+Copyright (C) 2015  Sachin Pundhir (pundhir@binf.ku.dk)
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program.  If not, see <http://www.gnu.org/licenses/>.
+copyright_info
+
+FLANK_WIN_UP=500
+FLANK_WIN_DOWN=500
+GENOME="mm9"
+
+#### usage ####
+usage() {
+    echo
+	echo Program: "bed2nfrdip (determine nfr dip for an input coordinates in BED format)"
+	echo Author: BRIC, University of Copenhagen, Denmark
+	echo Version: 1.0
+	echo Contact: pundhir@binf.ku.dk
+	echo "Usage: bed2nfrdip -i <file> -j <file> -k <float> -o <file> [OPTIONS]"
+	echo "Options:"
+    echo " -i <file>   [input genomic coordinates in BED format]"
+    echo " -j <file>   [input mapped reads in BAM format]"
+    echo "             [if multiple seperate by a comma]"
+    echo " -k <float>  [size factor to normalize the expression of read block]"
+    echo "             [if multiple seperate by a comma]"
+    echo " -o <file>   [output file]"
+    echo "[OPTIONS]"
+    echo " -l <int>    [length of the upstream flanking window (default: 500)]"
+    echo " -m <int>    [length of the downstream flanking window (default: 500)]"
+    echo " -e <int>    [extend 3' end of reads by input number of bases]"
+    echo "             [if multiple seperate by a comma]"
+    echo " -g <string> [genome (default: mm9)]"
+	echo " -h          [help]"
+	echo
+	exit 0
+}
+
+#### parse options ####
+while getopts i:j:k:o:l:m:e:g:h ARG; do
+	case "$ARG" in
+		i) BEDFILE=$OPTARG;;
+		j) BAMFILE=$OPTARG;;
+		k) SIZEFACTOR=$OPTARG;;
+        o) OUTFILE=$OPTARG;;
+        l) FLANK_WIN_UP=$OPTARG;;
+        m) FLANK_WIN_DOWN=$OPTARG;;
+        e) EXTEND=$OPTARG;;
+        g) GENOME=$OPTARG;;
+		h) HELP=1;;
+	esac
+done
+
+## usage, if necessary file and directories are given/exist
+if [ ! -f "$BEDFILE" -o -z "$BAMFILE" -o  -z "$SIZEFACTOR" -o -z "$OUTFILE" -o "$HELP" ]; then
+	usage
+fi
+
+###################
+#helperfunction
+function wait_for_jobs_to_finish {
+    for job in `jobs -p`
+    do
+        echo $job
+        wait $job
+    done
+    echo $1
+}
+###############
+
+## check if input genome option is suitable
+GENOME_FILE=$(initialize_genome -i $PAREPATH/data/annotations/GENOME_FILE -g $GENOME)
+GENOME_FILE=$PAREPATH/data/annotations/$GENOME_FILE
+if [ ! -f "$GENOME_FILE" ]; then
+    echo
+    echo "computation for $GENOME is not feasible yet"
+    echo "please add the chromosome size file for $GENOME at $PAREPATH/data/annotations"
+    echo "also update the $PAREPATH/data/annotations/GENOME_FILE"
+    echo
+    usage
+fi
+
+## parse input bam files in an array
+IFS=","
+BAMFILES=($BAMFILE)
+BAMFILES_COUNT=${#BAMFILES[@]}
+IFS=""
+
+## parse input size factors in an array
+IFS=","
+SIZEFACTORS=($SIZEFACTOR)
+SIZEFACTORS_COUNT=${#SIZEFACTORS[@]}
+IFS=""
+
+## initialize extend parameter, if not provided
+if [ -z "$EXTEND" ]; then
+    EXTEND=""
+    for(( i=0; i<$BAMFILES_COUNT; i++ )); do
+        EXTEND="$EXTEND,0"
+    done
+    EXTEND=`echo $EXTEND | perl -ane '$_=~s/^\,//g; print $_;'`;
+fi
+
+## parse input size factors in an array
+IFS=","
+EXTENDS=($EXTEND)
+EXTENDS_COUNT=${#EXTENDS[@]}
+IFS=""
+
+if [ "$BAMFILES_COUNT" -ne "$SIZEFACTORS_COUNT" -o "$BAMFILES_COUNT" -ne "$EXTENDS_COUNT" ]; then
+    echo -n "Please provide size factor and extend parameter for each input bam file";
+    usage
+fi
+
+echo -n "compute nfr dip for input regions.. "
+readarray -t NFRREGION < $BEDFILE;
+
+for (( i=0; i<${#NFRREGION[@]}; i++ )); do
+    COOR=`echo ${NFRREGION[$i]} | perl -ane 'print "$F[0]:$F[1]-$F[2]";'`;
+    COLUMN=`echo ${NFRREGION[$i]} | perl -ane 'print scalar(@F);'`;
+    if [ "$COLUMN" -ge 8 ]; then
+        FLANK_WIN_UP=`echo ${NFRREGION[$i]} | perl -ane 'print "$F[6]";'`;
+        FLANK_WIN_DOWN=`echo ${NFRREGION[$i]} | perl -ane 'print "$F[7]";'`;
+    fi
+
+    CHR=`echo ${NFRREGION[$i]} | perl -ane 'print "$F[0]";'`;
+    START=`echo ${NFRREGION[$i]} | perl -ane 'print "$F[1]";'`;
+    END=`echo ${NFRREGION[$i]} | perl -ane 'print "$F[2]";'`;
+    SCORE=`coor2nfrdip -i $COOR -j $BAMFILE -k $SIZEFACTOR -l $FLANK_WIN_UP -m $FLANK_WIN_DOWN -e $EXTEND -g $GENOME`
+    #echo "coor2nfrdip -i $COOR -j $BAMFILE -k $SIZEFACTOR -l $FLANK_WIN_UP -m $FLANK_WIN_DOWN -e $EXTEND -g $GENOME"
+    echo -e "$CHR\t$START\t$END\t$SCORE"
+done > $OUTFILE

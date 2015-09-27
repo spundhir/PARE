@@ -1,0 +1,41 @@
+#!/bin/sh
+
+#convert_2_html_table.sh 
+#Converts a delimited file to a HTML table
+#Jadu Saikia http://unstableme.blogspot.in
+
+NOARG=64
+
+#usage function
+f_Usage () {
+    echo "Usage: $(basename $0) -d <delimiter> -f <delimited-file>"
+}
+
+#command line args
+while getopts d:f: OPTION
+do
+    case $OPTION in
+        d)  DELIMITER=$OPTARG ;;
+        f)  INFILE=$OPTARG ;;
+    esac
+done
+
+#Less than 2 command line argument, throw Usage
+[ "$#" -lt 2 ] && f_Usage && exit $NOARG
+
+DEFAULTDELIMITER=","
+#If no delimiter is supplied, default delimiter is comma i.e. ,
+SEPARATOR=${DELIMITER:-$DEFAULTDELIMITER}
+
+if [ -f "${INFILE}" ]
+then
+    printf "<table border=\"1\">"
+    #sed "s/$SEPARATOR/<\/td><td>/g" $INFILE | while read line
+    perl -ane '$_=~s/\t/<\/td><td>/g; print $_;' $INFILE | while read line
+    do
+        printf "<tr><td>${line}</td></tr>"
+    done
+    printf "</table>"
+    echo
+fi
+

@@ -1,0 +1,81 @@
+#!/bin/bash
+#PBS -l nodes=1:ppn=4
+
+<<"copyright_info"
+bam2bedForChIP: convert file in bam to bed format
+Copyright (C) 2015  Sachin Pundhir (pundhir@binf.ku.dk)
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program.  If not, see <http://www.gnu.org/licenses/>.
+copyright_info
+
+GENOME="mm9"
+SIZEFACTOR=1
+EXTENDREAD=0
+
+#### usage ####
+usage() {
+	echo Program: "bam2bedForChIP (convert file in bam to bed format)"
+	echo Author: BRIC, University of Copenhagen, Denmark
+	echo Version: 1.0
+	echo Contact: pundhir@binf.ku.dk
+	echo "Usage: bam2bedForChIP -i <file> -o <file(s)>"
+	echo "Options:"
+	echo " -i <file>   [input bam file]"
+    echo " -o <file>   [output bed file]"
+    echo "[OPTIONS]"
+    echo " -s <float>  [normalize expression by input size factor]"
+    echo " -d          [remove duplicate reads]"
+    echo " -e <int>    [extend 3' end of reads by input number of bases (useful for ChIP-seq data)]"
+    echo " -g <string> [genome (default: mm9)]"
+	echo " -h          [help]"
+	echo
+	exit 0
+}
+
+#### parse options ####
+while getopts i:o:s:de:g:h ARG; do
+	case "$ARG" in
+		i) BAMFILE=$OPTARG;;
+        o) BEDFILE=$OPTARG;;
+        s) SIZEFACTOR=$OPTARG;; 
+        d) REMOVE_DUPLICATE=1;;
+        e) EXTENDREAD=$OPTARG;;
+        g) GENOME=$OPTARG;;
+		h) HELP=1;;
+	esac
+done
+
+## usage, if necessary file and directories are given/exist
+if [ ! -f "$BAMFILE" -o ! "$BEDFILE" -o "$HELP" ]; then
+	usage
+fi
+
+## populating files based on input genome
+GENOME_FILE=$(initialize_genome -i $PAREPATH/data/annotations/GENOME_FILE -g $GENOME)
+GENOME_FILE=$PAREPATH/data/annotations/$GENOME_FILE
+if [ ! -f "$GENOME_FILE" ]; then
+    echo
+    echo "computation for $GENOME is not feasible yet"
+    echo "please add the chromosome size file for $GENOME at $PAREPATH/data/annotations"
+    echo "also update the $PAREPATH/data/annotations/GENOME_FILE"
+    echo
+    usage
+fi
+
+## convert bam to bed format
+if [ -z "REMOVE_DUPLICATE" ]; then
+    bedtools bamtobed -i $BAMFILE | perl -ane 'if($F[0]=~/^chr[0-9a-zA-Z]+$/) { $F[4]=sprintf("%0.2f", 1/'$SIZEFACTOR'); print "$F[0]\t$F[1]\t$F[2]\tTAG\t$F[4]\t$F[5]\n"; }' | bedtools slop -i stdin -g $GENOME_FILE -s -l 0 -r $EXTENDREAD | perl -ane 'print "$F[0]\t$F[1]\t$F[2]\t$F[3]\t$F[4]\t+\n";' | sort -k 1,1 -k 2n,2 -k 3n,3
+else
+    bedtools bamtobed -i $BAMFILE | perl -ane 'if($F[0]=~/^chr[0-9a-zA-Z]+$/) { $F[4]=sprintf("%0.2f", 1/'$SIZEFACTOR'); print "$F[0]\t$F[1]\t$F[2]\tTAG\t$F[4]\t$F[5]\n"; }' | bedtools slop -i stdin -g $GENOME_FILE -s -l 0 -r $EXTENDREAD | sort -k 1,1 -k 2n,2 -k 3n,3 | uniq | perl -ane 'print "$F[0]\t$F[1]\t$F[2]\t$F[3]\t$F[4]\t+\n";'
+fi > $BEDFILE

@@ -1,0 +1,178 @@
+#!/bin/bash
+#PBS -l nodes=1:ppn=4
+
+<<"copyright_info"
+coor2bg: define block groups for a genomic coordinate
+Copyright (C) 2015  Sachin Pundhir (pundhir@binf.ku.dk)
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program.  If not, see <http://www.gnu.org/licenses/>.
+copyright_info
+
+GENOME="mm9"
+MINCLUSTERHEIGHT=2
+MINBLOCKHEIGHT=2
+DISTANCE=70
+SCALE="0.6"
+BLOCKHEIGHT="abs"
+
+#### usage ####
+usage() {
+    echo
+	echo Program: "coor2bg (define block groups for a genomic coordinate)"
+	echo Author: BRIC, University of Copenhagen, Denmark
+	echo Version: 1.0
+	echo Contact: pundhir@binf.ku.dk
+	echo "Usage: coor2bg -i <coor> -j <file> -k <float> [OPTIONS]"
+	echo "Options:"
+	echo " -i <coor>   [input genomic coordinate (chr:start-end)]"
+	echo " -j <file>   [input mapped reads in BAM format]"
+    echo "             [if multiple seperate them by a comma]"
+    echo "[OPTIONS]"
+    echo " -k <float>  [normalize expression by input size factor]"
+    echo "             [if multiple seperate them by a comma]"
+    echo " -d          [remove duplicate reads]"
+    echo " -e <int>    [extend 3' end of reads by input number of bases (useful for ChIP-seq data)]"
+    echo "             [if multiple seperate them by a comma]"
+    echo " -g <string> [genome (default: mm9)]"
+    echo " -s          [define block groups for reads from + and - strand seperately]"
+    echo " -a <int>    [minimum number of read in the block group (default: 20)]"
+    echo " -b <int>    [minimum number of read in the block (default: 20)]"
+    echo " -x <int>    [maximum distance between the blocks (default: 70)]"
+    echo " -l <float>  [scale to define blocks (default: 0.6)]"
+    echo " -m <int>    [block height (abs or rel) (default: abs)]"
+    echo " -r <file>   [output read file]"
+	echo " -h          [help]"
+	echo
+	exit 0
+}
+
+#### parse options ####
+while getopts i:j:k:de:g:sa:b:x:l:m:r:h ARG; do
+	case "$ARG" in
+		i) COOR=$OPTARG;;
+		j) BAMFILE=$OPTARG;;
+		k) SIZEFACTOR=$OPTARG;;
+        d) REMOVE_DUPLICATE=1;;
+        e) EXTEND=$OPTARG;;
+        g) GENOME=$OPTARG;;
+        s) STRANDSPECIFIC=1;;
+        a) MINCLUSTERHEIGHT=$OPTARG;;
+        b) MINBLOCKHEIGHT=$OPTARG;;
+        x) DISTANCE=$OPTARG;;
+        l) SCALE=$OPTARG;;
+        m) BLOCKHEIGHT=$OPTARG;;
+        r) READFILE=$OPTARG;;
+		h) HELP=1;;
+	esac
+done
+
+## usage, if necessary file and directories are given/exist
+if [ -z "$COOR" -o -z "$BAMFILE" -o "$HELP" ]; then
+	usage
+fi
+
+###################
+#helperfunction
+function wait_for_jobs_to_finish {
+    for job in `jobs -p`
+    do
+        echo $job
+        wait $job
+    done
+    echo $1
+}
+###############
+
+## populating files based on input genome
+GENOME_FILE=$(initialize_genome -i $PAREPATH/data/annotations/GENOME_FILE -g $GENOME)
+GENOME_FILE=$PAREPATH/data/annotations/$GENOME_FILE
+if [ ! -f "$GENOME_FILE" ]; then
+    echo
+    echo "computation for $GENOME is not feasible yet"
+    echo "please add the chromosome size file for $GENOME at $PAREPATH/data/annotations"
+    echo "also update the $PAREPATH/data/annotations/GENOME_FILE"
+    echo
+    usage
+fi
+echo done
+
+<<"COMMENT"
+COMMENT
+## parse input bam files in an array
+IFS=","
+BAMFILES=($BAMFILE)
+BAMFILES_COUNT=${#BAMFILES[@]}
+IFS=""
+
+## initialize size factors, if both size factors and total reads not provided
+if [ -z "$SIZEFACTOR" -a -z "$CPM" ]; then
+    SIZEFACTOR=""
+    for(( i=0; i<$BAMFILES_COUNT; i++ )); do
+        SIZEFACTOR="$SIZEFACTOR,1"
+    done
+    SIZEFACTOR=`echo $SIZEFACTOR | perl -ane '$_=~s/^\,//g; print $_;'`;
+fi
+
+## initialize extend parameter, if not provided
+if [ -z "$EXTEND" ]; then
+    EXTEND=""
+    for(( i=0; i<$BAMFILES_COUNT; i++ )); do
+        EXTEND="$EXTEND,0"
+    done
+    EXTEND=`echo $EXTEND | perl -ane '$_=~s/^\,//g; print $_;'`;
+fi
+
+## parse input size factors in an array
+IFS=","
+SIZEFACTORS=($SIZEFACTOR)
+SIZEFACTORS_COUNT=${#SIZEFACTORS[@]}
+IFS=""
+
+## parse input size factors in an array
+IFS=","
+EXTENDS=($EXTEND)
+EXTENDS_COUNT=${#EXTENDS[@]}
+IFS=""
+
+if [ "$BAMFILES_COUNT" -ne "$SIZEFACTORS_COUNT" -o "$BAMFILES_COUNT" -ne "$EXTENDS_COUNT" ]; then
+    echo -n "Please provide size factor and extend parameter for each input bam file";
+    usage
+fi
+
+## start the analysis
+ID1=`echo $COOR | sed 's/[\:\-]/_/g' | sed 's/\,//g'`;
+ID2=`echo $BAMFILE | sed 's/^.*\///g'`;
+ID=$ID1"_"$RANDOM"_"$ID2".tmp"
+
+## retrieve normalized reads (CPM or RLE)
+if [ ! -z "$REMOVE_DUPLICATE" ]; then
+    coor2reads -c $COOR -b $BAMFILE -s $SIZEFACTOR -d -e $EXTEND -g $GENOME | sort -k 6,6 > /tmp/$ID;
+else
+    coor2reads -c $COOR -b $BAMFILE -s $SIZEFACTOR -e $EXTEND -g $GENOME | sort -k 6,6 > /tmp/$ID;
+fi
+
+## put strand to "+" for all reads, unless specified not to do so by -s parameter
+if [ -z "$STRANDSPECIFIC" ]; then
+    perl -ane 'print "$F[0]\t$F[1]\t$F[2]\t$F[3]\t$F[4]\t+\n";' /tmp/$ID | sortBed -i stdin > /tmp/$ID.tmp
+    mv /tmp/$ID.tmp /tmp/$ID
+fi
+
+## define block groups or blocks using blockbuster
+blockbuster.x -minClusterHeight $MINCLUSTERHEIGHT -minBlockHeight $MINBLOCKHEIGHT -distance $DISTANCE -scale $SCALE -blockHeight $BLOCKHEIGHT /tmp/$ID;
+
+if [ ! -z "$READFILE" ]; then
+    scp -p /tmp/$ID $READFILE
+fi
+
+rm /tmp/$ID

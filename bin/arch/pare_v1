@@ -1,0 +1,116 @@
+#!/bin/bash
+#PBS -l nodes=1:ppn=4
+
+<<"copyright_info"
+pare: Predict Active Regulatory Elements using histone marks
+Copyright (C) 2015  Sachin Pundhir (pundhir@binf.ku.dk)
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program.  If not, see <http://www.gnu.org/licenses/>.
+copyright_info
+
+OUTDIR="results";
+GENOME="mm9"
+MINNFRLENGTH=20
+MAXNFRLENGTH=1000
+NFR_THRESHOLD="0.05"
+
+#### usage ####
+usage() {
+	echo Program: "pare (Predict Active Regulatory Elements using histone marks)"
+	echo Author: BRIC, University of Copenhagen, Denmark
+	echo Version: 0.01
+	echo Contact: pundhir@binf.ku.dk
+	echo "Usage: nfrAnaAll -i <file> -j <file> -k <file> [OPTIONS]"
+	echo "Options:"
+	echo " -i <file>   [mapped reads in BAM format (replicate 1)]"
+	echo " -j <file>   [mapped reads in BAM format (replicate 2)]"
+	echo " -k <file>   [optimal histone peaks region (regionPeak file)]"
+    echo "[OPTIONS]"
+    echo " -o <dir>    [output directory to store results (default: results)"
+    echo " -m <string> [genome (default: mm9)]"
+    echo " -p          [run in parallel]"
+    echo " -n <int>    [minimum length of nucleosome free region (default: 20)]"
+    echo " -v <int>    [maximum length of nucleosome free region (default: 1000)]"
+    echo " -t <float>  [FDR at which to consider a NFR as significant (default: 0.05)]"
+	echo " -h          [help]"
+	echo
+	exit 0
+}
+
+#### parse options ####
+while getopts i:j:k:o:m:pn:v:t:h ARG; do
+	case "$ARG" in
+		i) REP1=$OPTARG;;
+		j) REP2=$OPTARG;;
+		k) PEAKREGION=$OPTARG;;
+        o) OUTDIR=$OPTARG;;
+        m) GENOME=$OPTARG;;
+        p) PARALLEL=1;;
+        n) MINNFRLENGTH=$OPTARG;;
+        v) MAXNFRLENGTH=$OPTARG;;
+        t) NFR_THRESHOLD=$OPTARG;;
+		h) HELP=1;;
+	esac
+done
+
+echo
+if [ "$HELP" ]; then
+    usage
+fi
+
+echo
+## usage, if necessary file and directories are given/exist
+if [ ! -f "$REP1" -o ! -f "$REP2" -o ! -f "$PEAKREGION" ]; then
+    echo
+    echo "Error: one or more required paramter values not provided"
+    echo
+	usage
+fi
+
+## check, if required environment variable is set
+if [ -z "$PAREPATH" -o ! -d "$PAREPATH" ]; then
+    echo
+    echo "The environment variable $PAREPATH is either not set or is set incorrectly"
+    echo "Please define it as: export $PAREPATH=<path to the installation directory of PARE>"
+    echo
+    exit 0    
+fi
+
+## check, if all prerequisite perl modules, R modules and binaries are installed
+$PAREPATH/bin/checkPrerequisite
+if [ $? -eq 1 ]; then
+    echo
+    echo "One or more perl module, R module or dependent binary is missing";
+    echo "Check for complete dependency list at TODO"
+    echo
+    exit 1
+fi
+
+## run PARE
+if [ -z "$PARALLEL" ]; then
+    $PAREPATH/bin/nfrAnaAll -i $REP1 -j $REP2 -k $PEAKREGION -o $OUTDIR/analysis -m $GENOME -n $MINNFRLENGTH -v $MAXNFRLENGTH -t $NFR_THRESHOLD -d
+else
+    $PAREPATH/bin/nfrAnaAll -i $REP1 -j $REP2 -k $PEAKREGION -o $OUTDIR/analysis -m $GENOME -n $MINNFRLENGTH -v $MAXNFRLENGTH -t $NFR_THRESHOLD -d -p $PARALLEL 
+fi
+
+## prepare final output files
+#perl -e 'print "#chr\tstart\tend\tid\tnfrDip\tstrand\tup-block\tdown-block\tTPM (up-block)\tlength (up-block)\tTPM (down-block)\tlength (down-block)\tTPM (NFR)\tlength (NFR)\tp-value\tFDR\tOrientation\n";' > $OUTDIR/RESULTS.TXT
+#cat $OUTDIR/analysis/h3k4me1_helas3.All.nfr.sig >> $OUTDIR/RESULTS.TXT
+perl -e 'print "#chr\tstart\tend\tname\tscore (nfrDip)\tstrand\tp-value\tFDR\n";' > $OUTDIR/RESULTS.TXT
+cat $OUTDIR/analysis/h3k4me1_helas3.All.nfr.sig | perl -ane 'print "$F[0]\t$F[1]\t$F[2]\t$F[3]\t$F[4]\t.\t$F[14]\t$F[15]\n";' >> $OUTDIR/RESULTS.TXT
+scp $OUTDIR/analysis/h3k4me1_helas3.All.nfr.sig.ucsc $OUTDIR/RESULTS.UCSC
+
+convert_2_html_table -d "\t" -f $OUTDIR/RESULTS.TXT > $OUTDIR/RESULTS.HTML
+
+exit

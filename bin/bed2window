@@ -1,0 +1,99 @@
+#!/bin/bash
+#PBS -l nodes=1:ppn=4
+
+<<"copyright_info"
+bed2window: create BED file flanking input bp to coodinates in a BED file
+Copyright (C) 2015  Sachin Pundhir (pundhir@binf.ku.dk)
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program.  If not, see <http://www.gnu.org/licenses/>.
+copyright_info
+
+WIN=200;
+
+#### usage ####
+usage() {
+	echo Program: "bed2window (create BED file flanking input bp to coodinates in a BED file)"
+	echo Author: BRIC, University of Copenhagen, Denmark
+	echo Version: 1.0
+	echo Contact: pundhir@binf.ku.dk
+	echo "Usage: bed2window -i <file | stdin>"
+	echo "Options:"
+	echo " -i <file>   [input file containing genomic coordinate in BED format]"
+    echo "[OPTIONS]"
+    echo " -w <int>    [flanking window length (default: 200 bp)]"
+    echo "             [200 bp up- and downstream to middle point]"
+    echo " -t          [instead of mid point flank it to the TSS]"
+    echo " -l          [instead of mid point flank it to the left coordinate boundary]"
+    echo " -r          [instead of mid point flank it to the right coordinate boundary]"
+    echo " -s          [do not sort output BED file]"
+    echo " -m          [mark window flanking to left as from - and to right as from + strand]"
+    echo "             [only valid with -l or -r parameters]"
+	echo " -h          [help]"
+	echo
+	exit 0
+}
+
+#### parse options ####
+while getopts i:w:tlrsmh ARG; do
+	case "$ARG" in
+		i) INPUTBEDFILE=$OPTARG;;
+        w) WIN=$OPTARG;;
+        t) TSS=1;;
+        l) LEFT=1;;
+        r) RIGHT=1;;
+        s) NOSORT=1;;
+        m) MARK_STRAND=1;;
+		h) HELP=1;;
+	esac
+done
+
+## usage, if necessary file and directories are given/exist
+if [ -z "$INPUTBEDFILE" -o "$HELP" ]; then
+	usage
+fi
+
+if [ ! -z "$TSS" ]; then
+    if [ -f "$INPUTBEDFILE" ]; then
+        zless $INPUTBEDFILE | perl -ane 'if($F[5]=~/^\-$/) { $start=$F[2]; $end=$start+'$WIN'; } else { $end=$F[1]; $start=$end-'$WIN'; } $chr=$F[0]; if($start<0) { $start=1 } $line="$chr\t$start\t$end\t"; foreach(@F[3..scalar(@F)-1]) { $line.="$_\t"; } $line=~s/\t$//g; print "$line\n";' 
+    elif [ "$INPUTBEDFILE" == "stdin" ]; then 
+        while read LINE; do echo ${LINE}; done | perl -ane 'if($F[5]=~/^\-$/) { $start=$F[2]; $end=$start+'$WIN'; } else { $end=$F[1]; $start=$end-'$WIN'; } $chr=$F[0]; if($start<0) { $start=1 } $line="$chr\t$start\t$end\t"; foreach(@F[3..scalar(@F)-1]) { $line.="$_\t"; } $line=~s/\t$//g; print "$line\n";'
+    else
+        usage
+    fi
+elif [ ! -z "$LEFT" ]; then    
+    if [ -f "$INPUTBEDFILE" ]; then
+        zless $INPUTBEDFILE | perl -ane '$chr=$F[0]; $start=$F[1]-'$WIN'; $end=$F[1]; if($start<0) { $start=1 } $line="$chr\t$start\t$end\t"; foreach(@F[3..scalar(@F)-1]) { $line.="$_\t"; } $line=~s/\t$//g; print "$line\n";' 
+    elif [ "$INPUTBEDFILE" == "stdin" ]; then 
+        while read LINE; do echo ${LINE}; done | perl -ane '$chr=$F[0]; $start=$F[1]-'$WIN'; $end=$F[1]; if($start<0) { $start=1 } $line="$chr\t$start\t$end\t"; foreach(@F[3..scalar(@F)-1]) { $line.="$_\t"; } $line=~s/\t$//g; print "$line\n";' 
+    else
+        usage
+    fi | if [ ! -z "$MARK_STRAND" ]; then perl -ane '$F[5]="-"; $line=(); foreach(@F) { $line.="$_\t"; } $line=~s/\t$//g; print "$line\n";'; else perl -ane 'print $_;'; fi 
+elif [ ! -z "$RIGHT" ]; then    
+    if [ -f "$INPUTBEDFILE" ]; then
+        zless $INPUTBEDFILE | perl -ane '$chr=$F[0]; $start=$F[2]; $end=$F[2]+'$WIN'; if($start<0) { $start=1 } $line="$chr\t$start\t$end\t"; foreach(@F[3..scalar(@F)-1]) { $line.="$_\t"; } $line=~s/\t$//g; print "$line\n";' 
+    elif [ "$INPUTBEDFILE" == "stdin" ]; then 
+        while read LINE; do echo ${LINE}; done | perl -ane '$chr=$F[0]; $start=$F[2]; $end=$F[2]+'$WIN'; if($start<0) { $start=1 } $line="$chr\t$start\t$end\t"; foreach(@F[3..scalar(@F)-1]) { $line.="$_\t"; } $line=~s/\t$//g; print "$line\n";' 
+    else
+        usage
+    fi | if [ ! -z "$MARK_STRAND" ]; then perl -ane '$F[5]="+"; $line=(); foreach(@F) { $line.="$_\t"; } $line=~s/\t$//g; print "$line\n";'; else perl -ane 'print $_;'; fi
+else
+    if [ -f "$INPUTBEDFILE" ]; then
+        zless $INPUTBEDFILE | perl -ane '$mid=sprintf("%0.0f", ($F[1]+$F[2])/2); $chr=$F[0];$start=$mid-'$WIN'; $end=$mid+'$WIN'; if($start<0) { $start=1 } $line="$chr\t$start\t$end\t"; foreach(@F[3..scalar(@F)-1]) { $line.="$_\t"; } $line=~s/\t$//g; print "$line\n";' 
+    elif [ "$INPUTBEDFILE" == "stdin" ]; then 
+        while read LINE; do echo ${LINE}; done | perl -ane '$mid=sprintf("%0.0f", ($F[1]+$F[2])/2); $chr=$F[0];$start=$mid-'$WIN'; $end=$mid+'$WIN'; if($start<0) { $start=1 } $line="$chr\t$start\t$end\t"; foreach(@F[3..scalar(@F)-1]) { $line.="$_\t"; } $line=~s/\t$//g; print "$line\n";' 
+    else
+        usage
+    fi
+fi | if [ -z "$NOSORT" ]; then sortBed -i stdin; else perl -ane 'print $_;'; fi
+exit
