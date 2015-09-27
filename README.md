@@ -118,7 +118,7 @@ Output
 More info
 =========
 
-    for more and latest information, please refer to 
+    for more and latest information, please refer to http://servers.binf.ku.dk/pare/ 
 
 License
 =======
