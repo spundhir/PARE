@@ -64,20 +64,27 @@ Dependency
     2. R modules are installed by entering R (type R on the cmdline) and then enter the following three commands (follow the instructions on the screen):
 
         install.packages(c("ggplot2", "gridExtra", "optparse", "randomForest", "e1071"))
+
         source("http://bioconductor.org/biocLite.R")
+
         biocLite(c("DESeq"))
 
     3. download samtools from http://sourceforge.net/projects/samtools/files/samtools/1.2/samtools-1.2.tar.bz2/download, go to the download location and do
 
         tar xjf samtools-1.2.tar.bz2
+
         cd samtools-1.2
+
         make -j10 prefix=$HOME install
 
     4. download bedtools from https://github.com/arq5x/bedtools2/releases/download/v2.23.0/bedtools-2.23.0.tar.gz, go to the download location and do
 
         tar xzf BEDTools.v2.23
+
         cd bedtools-2.23.0/
+
         make -j 10
+
         cp bin/* $HOME/bin
 
     5. download featureCounts (subread) from http://sourceforge.net/projects/subread/files/subread-1.4.6-p4/, go to the download location and do
@@ -91,6 +98,7 @@ Dependency
     6. download bedGraphToBigWig from http://hgdownload.soe.ucsc.edu/admin/exe/ for your operating system, go to the download location and do
 
         cp bedGraphToBigWig $HOME/bin
+
         chmod 755 $HOME/bin/bedGraphToBigWig
 
 Usage
