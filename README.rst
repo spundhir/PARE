@@ -1,11 +1,11 @@
 
 ====================================================================
-README file for PARE: a computational pipeline to Predict Active Regulatory Elements
+README file for PARE (v0.02)
 ====================================================================
 
 Description
 ===========
-    PARE is an implementation of novel approach to detect Peak-Valley-Peak (PVP) pattern defined based on H3K4me1 and H3K4me3 signal at enhancers and promoters, respectively.
+    PARE is a computational pipeline to Predict Active Regulatory Elements (enhancers and promoters). It implements a novel approach to detect Peak-Valley-Peak (PVP) pattern defined based on H3K4me1 and H3K4me3 signal at enhancers and promoters, respectively.
 
     - Genomic regions enriched for H3K4me1 PVP pattern are predicted as active enhancers.
 
