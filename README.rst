@@ -145,7 +145,7 @@ More info
 License
 =======
 
-    PARESuite: a computational pipeline to predict Active Regulatory Elements using histone marks
+    PARE: a computational pipeline to predict Active Regulatory Elements using histone marks
     Copyright (C) 2015  Sachin Pundhir (pundhir@binf.ku.dk)
 
     This program is free software: you can redistribute it and/or modify
