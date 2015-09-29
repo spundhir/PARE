@@ -20,6 +20,10 @@ Programs and datasets
 
     - bed2direction: this script is used to detect directionality of stable transcription at promoter regions, provided as input in BED format.
 
+    An example dataset and expected results are available at:
+
+    - http://servers.binf.ku.dk/pare/download/test_run/
+
 Installation
 ============
 
