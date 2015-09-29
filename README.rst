@@ -1,4 +1,7 @@
-PARE: a computational pipeline to Predict Active Regulatory Elements
+
+====================================================================
+README file for PARE: a computational pipeline to Predict Active Regulatory Elements
+====================================================================
 
 Description
 ===========
