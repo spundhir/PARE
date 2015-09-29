@@ -121,6 +121,7 @@ Input
     As input, the pipeline requires mapped reads in BAM format. The name of the input files should be formatted as
 
     Input file name (replicate 1): <unique id><Rep1>.bam (example: h3k4me1_Rep1.bam)
+
     Input file name (replicate 2): <unique id><Rep2>.bam (example: h3k4me1_Rep2.bam)
 
     The chromosome identifier in the input BAM files should start with chr, for example as chrY and not like Y.
@@ -128,10 +129,11 @@ Input
 Output
 ======
 
-    The results from the PARESuite are compiled in two text files:
+    The results from the PARESuite are presented in two text files:
+
     a) RESULTS.TXT: main result file in BED format 
 
-    For easy access, the html version of this files (RESULTS.HTML) is also available within the output directory
+    For easy access, the html version of this file (RESULTS.HTML) is also available within the output directory
 
     b) RESULTS.UCSC: file to view the enhancer and promoter regions in UCSC browser
 
