@@ -15,8 +15,10 @@ Version
 Programs and datasets
 =====================
     Generally, the user would be interested in following two scripts:
-    1. pare: it is the main script to detect enhancers or promoters based on input BAM files (H3K4me1 - enhancers; H3K4me3 - promoters).
-    2. bed2direction: this script is used to detect directionality of stable transcription at promoter regions, provided as input in BED format.
+
+    - pare: it is the main script to detect enhancers or promoters based on input BAM files (H3K4me1 - enhancers; H3K4me3 - promoters).
+
+    - bed2direction: this script is used to detect directionality of stable transcription at promoter regions, provided as input in BED format.
 
 Installation
 ============
