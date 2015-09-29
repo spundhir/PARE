@@ -1,4 +1,4 @@
-PARE: a computational pipeline to Predict Active Regulatory Element
+PARE: a computational pipeline to Predict Active Regulatory Elements
 
 Description
 ===========
