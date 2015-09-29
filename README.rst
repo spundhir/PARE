@@ -111,9 +111,9 @@ Usage
 Example
 =======
 
-    An usage example of PARESuite is shown below. As input, the pipeline requires mapped reads in BAM format. Example dataset files are provided with the download (http://servers.binf.ku.dk/pare/download/)
+    An usage example of PARESuite is shown below. As input, the pipeline requires mapped reads in BAM format. An example dataset and expected results are available at http://servers.binf.ku.dk/pare/download/test_run/
 
-    pare -i data/test_data/h3k4me1_helas3_Rep1.bam -j data/test_data/h3k4me1_helas3_Rep2.bam -k data/test_data/optimal.h3k4me1_helas3_Rep0_Vs_control_helas3_Rep0.regionPeak.gz -o data/test_run_for_reference/ -m hg19 -p -v 3000 &> data/pare.log
+    pare -i data/h3k4me1_helas3_Rep1.bam -j data/h3k4me1_helas3_Rep2.bam -k data/optimal.h3k4me1_helas3_Rep0_Vs_control_helas3_Rep0.regionPeak.gz -o results -m hg19 -p -v 3000 &> pare.log
 
 Input
 =====
@@ -138,7 +138,7 @@ Output
 More info
 =========
 
-    for more and latest information, please refer to http://servers.binf.ku.dk/pare/ 
+    for more and latest information, please refer to https://github.com/spundhir/pare or http://servers.binf.ku.dk/pare/ 
 
 License
 =======
