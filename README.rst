@@ -83,7 +83,9 @@ Dependency
     5. download featureCounts (subread) from http://sourceforge.net/projects/subread/files/subread-1.4.6-p4/, go to the download location and do
 
         tar xzf subread-1.4.6-p4-Linux-x86_64.tar.gz
+        
         cd subread-1.4.6-p3-Linux-x86_64
+        
         cp bin/featureCounts $HOME/bin
 
     6. download bedGraphToBigWig from http://hgdownload.soe.ucsc.edu/admin/exe/ for your operating system, go to the download location and do
