@@ -140,7 +140,7 @@ Output
 More info
 =========
 
-    for more and latest information, please refer to https://github.com/spundhir/pare or http://servers.binf.ku.dk/pare/ 
+    for more and latest information, please refer to http://spundhir.github.io/PARE/ or http://servers.binf.ku.dk/pare/ 
 
 License
 =======
