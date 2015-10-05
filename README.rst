@@ -13,7 +13,7 @@ Description
 
 Version
 =======
-    [0.02](https://github.com/spundhir/PARE/releases/download/v0.02/PARESuite_v0.02.tar.gz)
+    0.02
 
 Programs and datasets
 =====================
