@@ -22,12 +22,19 @@
       <h1>
 <a id="description" class="anchor" href="#description" aria-hidden="true"><span class="octicon octicon-link"></span></a>Description</h1>
 
-<p>PARE is a computational pipeline to Predict Active Regulatory Elements (enhancers and promoters). It implements a novel approach to detect Peak-Valley-Peak (PVP) pattern defined based on H3K4me1 and H3K4me3 signal at enhancers and promoters, respectively.</p>
+<p>PARE is a computational pipeline to Predict Active Regulatory Elements (enhancers and promoters). It exploits two important properties of active enhancer and promoter regions, which are:</p>
 
-<pre><code>- Genomic regions enriched for H3K4me1 PVP pattern are predicted as active enhancers.
+<ol>
+<li>They are nucleosome depleted, therefore called as Nucleosome Free Regions (NFRs); and,</li>
+<li>The nucleosome flanking these regions are enriched for specific histone modifications. This in case of enhancer is H3K4me1 and in case of promoter is H3K4me3.</li>
+</ol>
 
-- Genomic regions enriched for H3K4me3 PVP pattern are predicted as active promoters.
-</code></pre>
+<p>As a consequence of above listed properties, H3K4me1 and H3K4me3 signal is arranged in the form of a peak-valley-peak (PVP) pattern at enhancers and promoters, respectively. PARE in essence captures this PVP-pattern, and predicts:</p>
+
+<ul>
+<li>Genomic regions enriched for H3K4me1 PVP pattern as active enhancers.</li>
+<li>Genomic regions enriched for H3K4me3 PVP pattern as active promoters.</li>
+</ul>
 
 <h1>
 <a id="usage" class="anchor" href="#usage" aria-hidden="true"><span class="octicon octicon-link"></span></a>Usage</h1>
