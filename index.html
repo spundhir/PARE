@@ -25,7 +25,8 @@
 <p>PARE is a computational pipeline to Predict Active Regulatory Elements (enhancers and promoters). It exploits two important properties of active enhancer and promoter regions, which are:</p>
 
 <pre><code>1. They are nucleosome depleted, therefore called as Nucleosome Free Regions (NFRs); and,
-2. The nucleosome flanking these regions are enriched for specific histone modifications. This enrichment in case of enhancer is H3K4me1 and in case of promoter is H3K4me3.
+2. The nucleosome flanking these regions are enriched for specific histone modifications, which
+   in case of enhancer is H3K4me1 and in case of promoter is H3K4me3.
 </code></pre>
 
 <p>As a consequence of above two properties, H3K4me1 and H3K4me3 signal is arranged in the form of a peak-valley-peak (PVP) pattern at enhancers and promoters, respectively. PARE, in essence, captures this PVP-pattern, and predicts:</p>
@@ -39,7 +40,7 @@
 
 <p>As input, the pipeline requires two BAM files corresponding to two replicates of H3K4me1 (enhancer prediction) or H3K4me3 (promoter prediction) ChIP experiment.</p>
 
-<p>PARE can be executed simply by executing following command</p>
+<p>PARE can be executed simply by issuing following command</p>
 
 <pre><code>pare -i &lt;BAM file (replicate 1)&gt; -j &lt;BAM file (replicate 2)&gt; [OPTIONS]
 </code></pre>
