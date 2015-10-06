@@ -19,112 +19,14 @@
     </section>
 
     <section class="main-content">
-      <p>PARE is a computational method to predict active enhancers and promoters. It exploits the peak-valley-peak (PVP) pattern by which histone modifications are enriched at these regulatory elements. Specifically, at enhancers and promoters, H3K4me1 and H3K4me3-based PVP patterns are observed, respectively.</p>
-
-<h1>
+      <h1>
 <a id="description" class="anchor" href="#description" aria-hidden="true"><span class="octicon octicon-link"></span></a>Description</h1>
 
-<pre><code>PARE is a computational pipeline to Predict Active Regulatory Elements (enhancers and promoters). It implements a novel approach to detect Peak-Valley-Peak (PVP) pattern defined based on H3K4me1 and H3K4me3 signal at enhancers and promoters, respectively.
+<p>PARE is a computational pipeline to Predict Active Regulatory Elements (enhancers and promoters). It implements a novel approach to detect Peak-Valley-Peak (PVP) pattern defined based on H3K4me1 and H3K4me3 signal at enhancers and promoters, respectively.</p>
 
-- Genomic regions enriched for H3K4me1 PVP pattern are predicted as active enhancers.
+<pre><code>- Genomic regions enriched for H3K4me1 PVP pattern are predicted as active enhancers.
 
 - Genomic regions enriched for H3K4me3 PVP pattern are predicted as active promoters.
-</code></pre>
-
-<h1>
-<a id="version" class="anchor" href="#version" aria-hidden="true"><span class="octicon octicon-link"></span></a>Version</h1>
-
-<pre><code>0.02
-</code></pre>
-
-<h1>
-<a id="programs-and-datasets" class="anchor" href="#programs-and-datasets" aria-hidden="true"><span class="octicon octicon-link"></span></a>Programs and datasets</h1>
-
-<pre><code>Generally, the user would be interested in following two scripts:
-
-- pare: it is the main script to detect enhancers or promoters based on input BAM files (H3K4me1 - enhancers; H3K4me3 - promoters).
-
-- bed2direction: this script is used to detect directionality of stable transcription at promoter regions, provided as input in BED format.
-
-An example dataset and expected results are available at:
-
-- http://servers.binf.ku.dk/pare/download/test_run/
-</code></pre>
-
-<h1>
-<a id="installation" class="anchor" href="#installation" aria-hidden="true"><span class="octicon octicon-link"></span></a>Installation</h1>
-
-<pre><code>1. To install PARESuite, download PARESuite.tar.gz and unpack it. A directory, PARESuite will be created
-
-    tar -zxvf PARESuite.tar.gz
-
-2. Now compile and create executable blockbuster
-
-    make or make all
-
-3. Export environment variable 'PAREPATH' containing path to PARESuite installation directory
-
-    export PAREPATH=&lt;path to PARESuite installation directory&gt;
-
-4. Add 'PAREPATH' to your 'PATH' environment variable
-
-    export PATH=$PATH:$PAREPATH/bin
-
-5. Add 'PAREPATH' to your 'PERL5LIB' environment variable
-
-    export PERL5LIB=$PERL5LIB:$PAREPATH/share/perl/
-
-To permanently add or update the environment variable(s), add the last three export commands in your ~/.bashrc file
-</code></pre>
-
-<h1>
-<a id="dependency" class="anchor" href="#dependency" aria-hidden="true"><span class="octicon octicon-link"></span></a>Dependency</h1>
-
-<pre><code>We assume that the following programming platforms are installed and working: perl, R, and gcc. Besides, following packages should be installed.
-
-1. Install the needed perl modules
-
-    sudo cpan Tie::IxHash Statistics::Basic
-
-2. R modules are installed by entering R (type R on the cmdline) and then enter the following three commands (follow the instructions on the screen):
-
-    install.packages(c("ggplot2", "gridExtra", "optparse", "randomForest", "e1071"))
-
-    source("http://bioconductor.org/biocLite.R")
-
-    biocLite(c("DESeq"))
-
-3. download samtools from http://sourceforge.net/projects/samtools/files/samtools/1.2/samtools-1.2.tar.bz2/download, go to the download location and do
-
-    tar xjf samtools-1.2.tar.bz2
-
-    cd samtools-1.2
-
-    make -j10 prefix=$HOME install
-
-4. download bedtools from https://github.com/arq5x/bedtools2/releases/download/v2.23.0/bedtools-2.23.0.tar.gz, go to the download location and do
-
-    tar xzf BEDTools.v2.23
-
-    cd bedtools-2.23.0/
-
-    make -j 10
-
-    cp bin/* $HOME/bin
-
-5. download featureCounts (subread) from http://sourceforge.net/projects/subread/files/subread-1.4.6-p4/, go to the download location and do
-
-    tar xzf subread-1.4.6-p4-Linux-x86_64.tar.gz
-
-    cd subread-1.4.6-p3-Linux-x86_64
-
-    cp bin/featureCounts $HOME/bin
-
-6. download bedGraphToBigWig from http://hgdownload.soe.ucsc.edu/admin/exe/ for your operating system, go to the download location and do
-
-    cp bedGraphToBigWig $HOME/bin
-
-    chmod 755 $HOME/bin/bedGraphToBigWig
 </code></pre>
 
 <h1>
