@@ -43,14 +43,15 @@
 
 <p>PARE can be executed simply by executing following command</p>
 
-<p>pare -i  -j  [OPTIONS]</p>
+<pre><code>pare -i &lt;BAM file (replicate 1)&gt; -j &lt;BAM file (replicate 2)&gt; [OPTIONS]
+</code></pre>
 
 <h1>
 <a id="output" class="anchor" href="#output" aria-hidden="true"><span class="octicon octicon-link"></span></a>Output</h1>
 
 <p>The results from the PARESuite are presented in two text files:</p>
 
-<p>a) RESULTS.TXT: main result file in BED format </p>
+<p>a) RESULTS.TXT: main result file in BED format. Each line represents the genomic coordinate of an active enhancer or promoter.</p>
 
 <p>For easy access, the html version of this file (RESULTS.HTML) is also available within the output directory</p>
 
@@ -61,7 +62,8 @@
 
 <p>An usage example of PARESuite is shown below. As input, the pipeline requires mapped reads in BAM format. An example dataset and expected results are available at <a href="http://servers.binf.ku.dk/pare/download/test_run/">http://servers.binf.ku.dk/pare/download/test_run/</a></p>
 
-<p>pare -i data/h3k4me1_helas3_Rep1.bam -j data/h3k4me1_helas3_Rep2.bam -k data/optimal.h3k4me1_helas3_Rep0_Vs_control_helas3_Rep0.regionPeak.gz -o results -m hg19 -p &amp;&gt; pare.log</p>
+<pre><code>pare -i data/h3k4me1_helas3_Rep1.bam -j data/h3k4me1_helas3_Rep2.bam -k data/optimal.h3k4me1_helas3_Rep0_Vs_control_helas3_Rep0.regionPeak.gz -o results -m hg19 -p &amp;&gt; pare.log
+</code></pre>
 
 <h1>
 <a id="more-info" class="anchor" href="#more-info" aria-hidden="true"><span class="octicon octicon-link"></span></a>More info</h1>
