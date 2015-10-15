@@ -12,7 +12,7 @@
   <body>
     <section class="page-header">
       <h1 class="project-name">PARE</h1>
-      <h2 class="project-tagline">PARE: a computational pipeline to <u>P</u>redict <u>A</u>ctive <u>R</u>egulatory <u>E</u>lements</h2>
+      <h2 class="project-tagline">PARE: a computational method to <u>P</u>redict <u>A</u>ctive <u>R</u>egulatory <u>E</u>lements</h2>
       <a href="https://github.com/spundhir/PARE" class="btn">View on GitHub</a>
       <a href="https://github.com/spundhir/PARE/zipball/master" class="btn">Download .zip</a>
       <a href="https://github.com/spundhir/PARE/tarball/master" class="btn">Download .tar.gz</a>
@@ -22,7 +22,7 @@
       <h1>
 <a id="what" class="anchor" href="#what" aria-hidden="true"><span class="octicon octicon-link"></span></a>What is PARE?</h1>
 
-<p>PARE is a computational pipeline to <u><b>P</b></u>redict <u><b>A</b></u>ctive <u><b>R</b></u>egulatory <u><b>E</b></u>lements, specifically enhancers and promoters.
+<p>PARE is a computational method to <u><b>P</b></u>redict <u><b>A</b></u>ctive <u><b>R</b></u>egulatory <u><b>E</b></u>lements, specifically enhancers and promoters.
 
 <h1>
 <a id="why" class="anchor" href="#why" aria-hidden="true"><span class="octicon octicon-link"></span></a>Why use PARE?</h1>
@@ -60,7 +60,7 @@ PARE exploits two important properties of active enhancer and promoter regions, 
 <h1>
 <a id="input" class="anchor" href="#input" aria-hidden="true"><span class="octicon octicon-link"></span></a>Input</h1>
 
-<p>As input, the pipeline requires two <a href="https://genome.ucsc.edu/goldenPath/help/bam.html" target="_blank">BAM</a> files corresponding to two replicates of H3K4me1 (enhancer prediction) or H3K4me3 (promoter prediction) ChIP-seq experiment.</p>
+<p>As input, the method requires two <a href="https://genome.ucsc.edu/goldenPath/help/bam.html" target="_blank">BAM</a> files corresponding to two replicates of H3K4me1 (enhancer prediction) or H3K4me3 (promoter prediction) ChIP-seq experiment.</p>
 
 <p>PARE can be executed simply by issuing following command</p>
 
@@ -84,7 +84,7 @@ PARE exploits two important properties of active enhancer and promoter regions, 
 <h1>
 <a id="example" class="anchor" href="#example" aria-hidden="true"><span class="octicon octicon-link"></span></a>Example</h1>
 
-<p>An usage example of PARESuite is shown below. As input, the pipeline requires mapped reads in BAM format. An example dataset and expected results are available at <a href="http://servers.binf.ku.dk/pare/download/test_run/">http://servers.binf.ku.dk/pare/download/test_run/</a></p>
+<p>An usage example of PARESuite is shown below. As input, the method requires mapped reads in BAM format. An example dataset and expected results are available at <a href="http://servers.binf.ku.dk/pare/download/test_run/">http://servers.binf.ku.dk/pare/download/test_run/</a></p>
 
 <pre><code>pare -i data/h3k4me1_helas3_Rep1.bam -j data/h3k4me1_helas3_Rep2.bam -k \
 data/optimal.h3k4me1_helas3_Rep0_Vs_control_helas3_Rep0.regionPeak.gz -o results \
@@ -103,7 +103,7 @@ data/optimal.h3k4me1_helas3_Rep0_Vs_control_helas3_Rep0.regionPeak.gz -o results
 <h1>
 <a id="license" class="anchor" href="#license" aria-hidden="true"><span class="octicon octicon-link"></span></a>License</h1>
 
-<pre><code>PARE: a computational pipeline to Predict Active Regulatory Elements using histone marks
+<pre><code>PARE: a computational method to Predict Active Regulatory Elements using histone marks
 Copyright (C) 2015  Sachin Pundhir (pundhir@binf.ku.dk)
 
 This program is free software: you can redistribute it and/or modify
