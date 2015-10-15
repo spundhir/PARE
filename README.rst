@@ -5,7 +5,7 @@ README file for PARE (v0.02)
 
 Description
 ===========
-    PARE is a computational pipeline to Predict Active Regulatory Elements (enhancers and promoters). It implements a novel approach to detect Peak-Valley-Peak (PVP) pattern defined based on H3K4me1 and H3K4me3 signal at enhancers and promoters, respectively.
+    PARE is a computational method to Predict Active Regulatory Elements (enhancers and promoters). It implements a novel approach to detect Peak-Valley-Peak (PVP) pattern defined based on H3K4me1 and H3K4me3 signal at enhancers and promoters, respectively.
 
     - Genomic regions enriched for H3K4me1 PVP pattern are predicted as active enhancers.
 
@@ -111,14 +111,14 @@ Usage
 Example
 =======
 
-    An usage example of PARESuite is shown below. As input, the pipeline requires mapped reads in BAM format. An example dataset and expected results are available at http://servers.binf.ku.dk/pare/download/test_run/
+    An usage example of PARESuite is shown below. As input, the method requires mapped reads in BAM format. An example dataset and expected results are available at http://servers.binf.ku.dk/pare/download/test_run/
 
     pare -i data/h3k4me1_helas3_Rep1.bam -j data/h3k4me1_helas3_Rep2.bam -k data/optimal.h3k4me1_helas3_Rep0_Vs_control_helas3_Rep0.regionPeak.gz -o results -m hg19 -p &> pare.log
 
 Input
 =====
 
-    As input, the pipeline requires mapped reads in BAM format. The name of the input files should be formatted as
+    As input, the method requires mapped reads in BAM format. The name of the input files should be formatted as
 
     Input file name (replicate 1): <unique id><Rep1>.bam (example: h3k4me1_Rep1.bam)
 
@@ -145,7 +145,7 @@ More info
 License
 =======
 
-    PARE: a computational pipeline to Predict Active Regulatory Elements using histone marks
+    PARE: a computational method to Predict Active Regulatory Elements using histone marks
     Copyright (C) 2015  Sachin Pundhir (pundhir@binf.ku.dk)
 
     This program is free software: you can redistribute it and/or modify
