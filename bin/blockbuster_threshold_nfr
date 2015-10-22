@@ -222,7 +222,9 @@ fi
 echo "done"
 
 echo -n "Plot distribution of normalized read counts for histone, tf and background shuffled peaks... "
-THRESHOLD=`Rscript $PAREPATH/share/R/blockbuster_threshold_nfr.R $OUTDIR/histone.reads.countStat $OUTDIR/bkg.reads.countStat $OUTDIR/tf.reads.countStat $OUTDIR/blockbuster_threshold.pdf 1 $BLOCK_BKG_PERCENTILE 2>/dev/null`
+#THRESHOLD=`Rscript $PAREPATH/share/R/blockbuster_threshold_nfr.R $OUTDIR/histone.reads.countStat $OUTDIR/bkg.reads.countStat $OUTDIR/tf.reads.countStat $OUTDIR/blockbuster_threshold.pdf 1 $BLOCK_BKG_PERCENTILE 2>/dev/null`
+THRESHOLD=$($PAREPATH/share/R/blockbuster_threshold_nfr.R -i $OUTDIR/histone.reads.countStat -j $OUTDIR/bkg.reads.countStat -k $OUTDIR/tf.reads.countStat -o $OUTDIR/blockbuster_threshold.pdf -m 1 -p $BLOCK_BKG_PERCENTILE 2>/dev/null)
+THRESHOLD=$(echo $THRESHOLD | sed -E 's/\s+.*//g');
 
 if [ -z "$THRESHOLD" ]; then
     THRESHOLD=5
