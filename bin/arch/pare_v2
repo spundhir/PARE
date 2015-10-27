@@ -1,0 +1,203 @@
+#!/bin/bash
+#PBS -l nodes=1:ppn=4
+
+<<"copyright_info"
+pare: Predict Active Regulatory Elements using histone marks
+Copyright (C) 2015  Sachin Pundhir (pundhir@binf.ku.dk)
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program.  If not, see <http://www.gnu.org/licenses/>.
+copyright_info
+
+OUTDIR="results";
+GENOME="mm9"
+MINNFRLENGTH=20
+MAXNFRLENGTH=1000
+NFR_THRESHOLD="0.05"
+BLOCK_BKG_PERCENTILE="0.0005"
+
+#### usage ####
+usage() {
+	echo Program: "pare (Predict Active Regulatory Elements using histone marks)"
+	echo Author: BRIC, University of Copenhagen, Denmark
+	echo Version: 0.01
+	echo Contact: pundhir@binf.ku.dk
+	echo "Usage: pare -i <file> -j <file> [OPTIONS]"
+	echo "Options:"
+	echo " -i <file>   [mapped reads in BAM format (replicate 1)]"
+	echo " -j <file>   [mapped reads in BAM format (replicate 2)]"
+    echo "[OPTIONS]"
+	echo " -k <file>   [optimal histone peaks region (default: will be computed using macs2)]"
+    echo "             [used to optimize blockbuster threshold; and,]"
+    echo "             [normalize tag counts between replicates]"
+    echo " -o <dir>    [output directory to store results (default: results)"
+    echo " -m <string> [genome (default: mm9)]"
+    echo " -p          [run in parallel]"
+    echo " -n <int>    [minimum length of nucleosome free region (default: 20)]"
+    echo " -v <int>    [maximum length of nucleosome free region (default: 1000)]"
+    echo " -t <float>  [FDR at which to consider a NFR as significant (default: 0.05)]"
+	echo " -h          [help]"
+    if [ ! -z "$PAREPATH" ]; then
+    echo "Available genomes:"
+    echo " $(cat $PAREPATH/data/annotations/GENOME_FILE | perl -ane 'print "$F[0]; ";')"
+    fi
+    echo
+	exit 0
+}
+
+#### parse options ####
+while getopts i:j:k:o:m:pn:v:t:h ARG; do
+	case "$ARG" in
+		i) REP1=$OPTARG;;
+		j) REP2=$OPTARG;;
+		k) PEAKREGION=$OPTARG;;
+        o) OUTDIR=$OPTARG;;
+        m) GENOME=$OPTARG;;
+        p) PARALLEL=1;;
+        n) MINNFRLENGTH=$OPTARG;;
+        v) MAXNFRLENGTH=$OPTARG;;
+        t) NFR_THRESHOLD=$OPTARG;;
+		h) HELP=1;;
+	esac
+done
+
+echo
+if [ "$HELP" ]; then
+    usage
+fi
+
+echo
+## usage, if necessary file and directories are given/exist
+if [ ! -f "$REP1" -o ! -f "$REP2" ]; then
+    echo
+    echo "Error: one or more required paramter values not provided"
+    echo
+	usage
+fi
+
+## check, if required environment variable is set
+if [ -z "$PAREPATH" -o ! -d "$PAREPATH" ]; then
+    echo
+    echo "The environment variable $PAREPATH is either not set or is set incorrectly"
+    echo "Please define it as: export $PAREPATH=<path to the installation directory of PARE>"
+    echo
+    exit 0    
+fi
+
+## check, if all prerequisite perl modules, R modules and binaries are installed
+$PAREPATH/bin/checkPrerequisite
+if [ $? -eq 1 ]; then
+    echo
+    echo "One or more perl module, R module or dependent binary is missing";
+    echo "Check for complete dependency list at TODO"
+    echo
+    exit 1
+fi
+
+## populate files based on input genome
+GENOME_FILE=$(initialize_genome -i $PAREPATH/data/annotations/GENOME_FILE -g $GENOME)
+GENOME_FILE=$PAREPATH/data/annotations/$GENOME_FILE
+if [ ! -f "$GENOME_FILE" ]; then
+    echo
+    echo "computation for $GENOME is not available yet"
+    echo "please add the chromosome size file for $GENOME at $PAREPATH/data/annotations"
+    echo "also update the $PAREPATH/data/annotations/GENOME_FILE"
+    echo
+    usage
+fi
+
+if [ "$GENOME" == "mm9" ]; then
+    GENOME_MACS2="mm"
+elif [ "$GENOME" == "mm10" ]; then
+    GENOME_MACS2="mm"
+elif [ "$GENOME" == "hg19" ]; then
+    GENOME_MACS2="hs"
+elif [ "$GENOME" == "hg38" ]; then
+    GENOME_MACS2="hs"
+fi
+
+## check, if region peak file is provided
+if [ -z "$PEAKREGION" -a -s "$OUTDIR/macs2/MACS2_peaks.narrowPeak" ]; then
+    PEAKREGION="$OUTDIR/macs2/MACS2_peaks.narrowPeak"
+    BLOCK_BKG_PERCENTILE="0.05"
+elif [ -z "$PEAKREGION" ]; then
+    ## compute it using macs2, if not provided
+    if [ ! -d "$OUTDIR/analysis" ]; then
+        mkdir -p $OUTDIR/analysis
+    fi
+    if [ ! -d "$OUTDIR/macs2" ]; then
+        mkdir -p $OUTDIR/macs2
+    fi
+
+    ID_REP1=`echo $REP1 | perl -ane '$_=~s/^.*\///g; $_=~s/\.gz$//g; print $_;'`;
+    ID_REP2=`echo $REP2 | perl -ane '$_=~s/^.*\///g; $_=~s/\.gz$//g; print $_;'`;
+
+    samtools view -b -F 1548 -q 30 $REP1 | bamToBed -i stdin | awk 'BEGIN{S="\t";OFS="\t"}{$4="N";print $0}' | gzip -c > $OUTDIR/macs2/$ID_REP1.tagAlign.gz &
+
+    samtools view -b -F 1548 -q 30 $REP2 | bamToBed -i stdin | awk 'BEGIN{S="\t";OFS="\t"}{$4="N";print $0}' | gzip -c > $OUTDIR/macs2/$ID_REP2.tagAlign.gz &
+    wait
+
+    if [ ! -z "$GENOME_MACS2" ]; then
+        macs2 predictd -i $REP1 -g $GENOME_MACS2 --outdir $OUTDIR/macs2/ 2>$OUTDIR/macs2/predictd.rep1 &
+
+        macs2 predictd -i $REP2 -g $GENOME_MACS2 --outdir $OUTDIR/macs2/ 2>$OUTDIR/macs2/predictd.rep2 &
+    else
+        macs2 predictd -i $REP1 --outdir $OUTDIR/macs2/ 2>$OUTDIR/macs2/predictd.rep1 &
+
+        macs2 predictd -i $REP2 --outdir $OUTDIR/macs2/ 2>$OUTDIR/macs2/predictd.rep2 &
+    fi
+
+    wait
+
+    FRAGMENTLENGTH_REP1=`cat $OUTDIR/macs2/predictd.rep1 | grep "predicted fragment length" | perl -ane 'print $F[scalar(@F)-2];'`
+    EXTEND_REP1=`echo $FRAGMENTLENGTH_REP1 | perl -ane 'printf("%0.0f", $_/2);'`
+
+    FRAGMENTLENGTH_REP2=`cat $OUTDIR/macs2/predictd.rep2 | grep "predicted fragment length" | perl -ane 'print $F[scalar(@F)-2];'`
+    EXTEND_REP2=`echo $FRAGMENTLENGTH_REP2 | perl -ane 'printf("%0.0f", $_/2);'`
+
+    echo -e "#extend (rep1)\textend (rep2)\tfragmentLength (rep1)\tfragmentLength (rep2)
+    $EXTEND_REP1\t$EXTEND_REP2\t$FRAGMENTLENGTH_REP1\t$FRAGMENTLENGTH_REP2" > $OUTDIR/analysis/extendReads
+
+    if [ ! -z "$GENOME_MACS2" ]; then
+        macs2 callpeak -t $OUTDIR/macs2/$ID_REP1.tagAlign.gz --outdir $OUTDIR/macs2 -f BED -n MACS2_Rep1 -g $GENOME_MACS2 -p 1e-3 --nomodel --shiftsize $EXTEND_REP1 2>$OUTDIR/macs2/MACS2_Rep1.log
+        macs2 callpeak -t $OUTDIR/macs2/$ID_REP2.tagAlign.gz --outdir $OUTDIR/macs2 -f BED -n MACS2_Rep2 -g $GENOME_MACS2 -p 1e-3 --nomodel --shiftsize $EXTEND_REP2 2>$OUTDIR/macs2/MACS2_Rep2.log
+    else
+        macs2 callpeak -t $OUTDIR/macs2/$ID_REP1.tagAlign.gz --outdir $OUTDIR/macs2 -f BED -n MACS2 -p 1e-3 --nomodel --shiftsize $EXTEND_REP1 2>$OUTDIR/macs2/MACS2_Rep1.log
+        macs2 callpeak -t $OUTDIR/macs2/$ID_REP2.tagAlign.gz --outdir $OUTDIR/macs2 -f BED -n MACS2 -p 1e-3 --nomodel --shiftsize $EXTEND_REP2 2>$OUTDIR/macs2/MACS2_Rep2.log
+    fi
+
+    intersectBed -a $OUTDIR/macs2/MACS2_Rep1_peaks.narrowPeak -b $OUTDIR/macs2/MACS2_Rep2_peaks.narrowPeak -u > $OUTDIR/macs2/MACS2_peaks.narrowPeak
+
+    PEAKREGION="$OUTDIR/macs2/MACS2_peaks.narrowPeak"
+    BLOCK_BKG_PERCENTILE="0.05"
+fi
+
+## run PARE
+if [ -z "$PARALLEL" ]; then
+    $PAREPATH/bin/nfrAnaAll -i $REP1 -j $REP2 -k $PEAKREGION -o $OUTDIR/analysis -m $GENOME -n $MINNFRLENGTH -v $MAXNFRLENGTH -t $NFR_THRESHOLD -d -z $BLOCK_BKG_PERCENTILE
+else
+    $PAREPATH/bin/nfrAnaAll -i $REP1 -j $REP2 -k $PEAKREGION -o $OUTDIR/analysis -m $GENOME -n $MINNFRLENGTH -v $MAXNFRLENGTH -t $NFR_THRESHOLD -d -p -z $BLOCK_BKG_PERCENTILE
+fi
+
+## prepare final output files
+ID=`echo $REP1 | perl -ane '$_=~s/^.*\///g; $_=~s/Rep.*$//g; $_=~s/\_$//g; print $_;'`;
+
+#perl -e 'print "#chr\tstart\tend\tid\tnfrDip\tstrand\tup-block\tdown-block\tTPM (up-block)\tlength (up-block)\tTPM (down-block)\tlength (down-block)\tTPM (NFR)\tlength (NFR)\tp-value\tFDR\tOrientation\n";' > $OUTDIR/RESULTS.TXT
+#cat $OUTDIR/analysis/h3k4me1_helas3.All.nfr.sig >> $OUTDIR/RESULTS.TXT
+perl -e 'print "#chr\tstart\tend\tname\tscore (nfrDip)\tstrand\tp-value\tFDR\n";' > $OUTDIR/RESULTS.TXT
+cat $OUTDIR/analysis/$ID.All.nfr.sig | perl -ane 'print "$F[0]\t$F[1]\t$F[2]\t$F[3]\t$F[4]\t.\t$F[14]\t$F[15]\n";' >> $OUTDIR/RESULTS.TXT
+scp $OUTDIR/analysis/$ID.All.nfr.sig.ucsc $OUTDIR/RESULTS.UCSC
+
+convert_2_html_table -d "\t" -f $OUTDIR/RESULTS.TXT > $OUTDIR/RESULTS.HTML
+
+exit

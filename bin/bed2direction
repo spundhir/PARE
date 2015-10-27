@@ -1,0 +1,114 @@
+#!/bin/bash
+#PBS -l nodes=1:ppn=4
+
+<<"copyright_info"
+bed2direction: perform direction analysis around BED coordinates using H3K4me1 and H3K4me3 modifications
+Copyright (C) 2015  Sachin Pundhir (pundhir@binf.ku.dk)
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program.  If not, see <http://www.gnu.org/licenses/>.
+copyright_info
+
+GENOME="mm9"
+WINDOW=500
+
+#### usage ####
+usage() {
+    echo
+	echo Program: "bed2direction (perform direction analysis around BED coordinates using H3K4me1 and H3K4me3 modifications)"
+	echo Author: BRIC, University of Copenhagen, Denmark
+	echo Version: 1.0
+	echo Contact: pundhir@binf.ku.dk
+	echo "Usage: bed2direction -i <file> -o <file> -a <file> -b <file> -c <file> -d <file> [OPTIONS]"
+	echo "Options:"
+	echo " -i <file>   [input file in BED format (can be stdin)]"
+    echo " -o <file>   [output file]"
+    echo " -a <file>   [input BAM file corresponding to H3K4me1 (replicate 1)]"
+    echo " -b <file>   [input BAM file corresponding to H3K4me1 (replicate 2)]"
+    echo " -c <file>   [input BAM file corresponding to H3K4me3 (replicate 1)]"
+    echo " -d <file>   [input BAM file corresponding to H3K4me3 (replicate 2)]"
+    echo "[OPTIONS]"
+    echo " -m <file>   [R session file containing trained model]"
+    echo "             [if given, predictions based on the input model will also be performed]"
+    echo " -g <string> [genome (default: mm9)]"
+    echo " -w <int>    [window size (default: 500)]"
+	echo " -h          [help]"
+	echo
+	exit 0
+}
+
+#### parse options ####
+while getopts i:o:a:b:c:d:m:g:w:h ARG; do
+	case "$ARG" in
+		i) BEDFILE=$OPTARG;;
+        o) OUTFILE=$OPTARG;;
+		a) BAMFILE_ME1_REP1=$OPTARG;;
+		b) BAMFILE_ME1_REP2=$OPTARG;;
+		c) BAMFILE_ME3_REP1=$OPTARG;;
+		d) BAMFILE_ME3_REP2=$OPTARG;;
+        m) SVM_MODEL=$OPTARG;;
+        g) GENOME=$OPTARG;;
+        w) WINDOW=$OPTARG;;
+		h) HELP=1;;
+	esac
+done
+
+## usage, if necessary file and directories are given/exist
+if [ -z "$BEDFILE" -o -z "$OUTFILE" -o ! -f "$BAMFILE_ME1_REP1" -o ! -f "$BAMFILE_ME1_REP2" -o ! -f "$BAMFILE_ME3_REP1" -o ! -f "$BAMFILE_ME3_REP2" -o "$HELP" ]; then
+	usage
+fi
+
+###################
+#helperfunction
+function wait_for_jobs_to_finish {
+    for job in `jobs -p`
+    do
+        echo $job
+        wait $job
+    done
+    echo $1
+}
+###############
+
+## populating files based on input genome
+GENOME_FILE=$(initialize_genome -i $PAREPATH/data/annotations/GENOME_FILE -g $GENOME)
+GENOME_FILE=$PAREPATH/data/annotations/$GENOME_FILE
+if [ ! -f "$GENOME_FILE" ]; then
+    echo
+    echo "computation for $GENOME is not feasible yet"
+    echo "please add the chromosome size file for $GENOME at $PAREPATH/data/annotations"
+    echo "also update the $PAREPATH/data/annotations/GENOME_FILE"
+    echo
+    usage
+fi
+
+## create temporary BED file if input is from stdin
+if [ "$BEDFILE" == "stdin" ]; then
+    TMP=$(cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w 32 | head -n 1)
+    while read LINE; do
+        echo ${LINE}
+    done | perl -ane '$line=""; foreach(@F) { $line.="$_\t"; } $line=~s/\t$//g; print "$line\n";' > $TMP
+    BEDFILE=$TMP
+fi
+
+#paste <(cut -f 1-6 $BEDFILE) <(paste <(cut -f 1-6 $BEDFILE | bed2window -i stdin -w 0 -s | bed2window -i stdin -w $WINDOW -l -s | bed2expr -i stdin -j $BAMFILE_ME1_REP1,$BAMFILE_ME1_REP2,$BAMFILE_ME3_REP1,$BAMFILE_ME3_REP2 -m -d -g $GENOME -v 1 | perl -ane '$start=scalar(@F)-2; $end=scalar(@F)-1; $line=""; foreach(@F[$start..$end]) { $line.="$_\t"; } $line=~s/\t$//g; print "$line\n";') <(cut -f 1-6 $BEDFILE | bed2window -i stdin -w 0 -s | bed2window -i stdin -w $WINDOW -r -s | bed2expr -i stdin -j $BAMFILE_ME1_REP1,$BAMFILE_ME1_REP2,$BAMFILE_ME3_REP1,$BAMFILE_ME3_REP2 -m -d -g $GENOME -v 1 | perl -ane '$start=scalar(@F)-2; $end=scalar(@F)-1; $line=""; foreach(@F[$start..$end]) { $line.="$_\t"; } $line=~s/\t$//g; print "$line\n";') <(cut -f 1-6 $BEDFILE | bed2window -i stdin -w $WINDOW -s | bed2expr -i stdin -j $BAMFILE_ME1_REP1,$BAMFILE_ME1_REP2,$BAMFILE_ME3_REP1,$BAMFILE_ME3_REP2 -m -d -g $GENOME -v 1 | perl -ane '$start=scalar(@F)-2; $end=scalar(@F)-1; $line=""; foreach(@F[$start..$end]) { $line.="$_\t"; } $line=~s/\t$//g; print "$line\n";')) | perl -ane '$F[6]=sqrt($F[6]+0.00001); $F[7]=sqrt($F[7]+0.00001); $F[8]=sqrt($F[8]+0.00001); $F[9]=sqrt($F[9]+0.00001); $d_me1=sprintf("%0.5f", ($F[6]-$F[8])/($F[6]+$F[8])); $d_me3=sprintf("%0.5f", ($F[7]-$F[9])/($F[7]+$F[9])); $F[10]=$F[10]; $F[11]=$F[11]; print "$F[0]\t$F[1]\t$F[2]\t$F[3]\t$F[4]\t$F[5]\t$d_me1\t$d_me3\t$F[10]\t$F[11]\n";' > $OUTFILE
+paste <(cut -f 1-6 $BEDFILE) <(paste <(cut -f 1-6 $BEDFILE | bed2window -i stdin -w 0 -s | bed2window -i stdin -w $WINDOW -l -s | bed2coverage -i stdin -j $BAMFILE_ME1_REP1,$BAMFILE_ME1_REP2,$BAMFILE_ME3_REP1,$BAMFILE_ME3_REP2 -m -d -g $GENOME -v 1 | perl -ane '$start=scalar(@F)-2; $end=scalar(@F)-1; $line=""; foreach(@F[$start..$end]) { $line.="$_\t"; } $line=~s/\t$//g; print "$line\n";') <(cut -f 1-6 $BEDFILE | bed2window -i stdin -w 0 -s | bed2window -i stdin -w $WINDOW -r -s | bed2coverage -i stdin -j $BAMFILE_ME1_REP1,$BAMFILE_ME1_REP2,$BAMFILE_ME3_REP1,$BAMFILE_ME3_REP2 -m -d -g $GENOME -v 1 | perl -ane '$start=scalar(@F)-2; $end=scalar(@F)-1; $line=""; foreach(@F[$start..$end]) { $line.="$_\t"; } $line=~s/\t$//g; print "$line\n";') <(cut -f 1-6 $BEDFILE | bed2window -i stdin -w $WINDOW -s | bed2coverage -i stdin -j $BAMFILE_ME1_REP1,$BAMFILE_ME1_REP2,$BAMFILE_ME3_REP1,$BAMFILE_ME3_REP2 -m -d -g $GENOME -v 1 | perl -ane '$start=scalar(@F)-2; $end=scalar(@F)-1; $line=""; foreach(@F[$start..$end]) { $line.="$_\t"; } $line=~s/\t$//g; print "$line\n";')) | perl -ane '$F[6]=($F[6]+0.00001); $F[7]=($F[7]+0.00001); $F[8]=($F[8]+0.00001); $F[9]=($F[9]+0.00001); $d_me1=sprintf("%0.5f", ($F[6]-$F[8])/($F[6]+$F[8])); $d_me3=sprintf("%0.5f", ($F[7]-$F[9])/($F[7]+$F[9])); $F[10]=$F[10]; $F[11]=$F[11]; print "$F[0]\t$F[1]\t$F[2]\t$F[3]\t$F[4]\t$F[5]\t$d_me1\t$d_me3\t$F[6]\t$F[7]\t$F[8]\t$F[9]\t$F[10]\t$F[11]\n";' > $OUTFILE
+
+if [ ! -z "$SVM_MODEL" ]; then
+    $PAREPATH/share/R/bed2direction.R -i $OUTFILE -j $SVM_MODEL -o "$OUTFILE".tmp
+    mv "$OUTFILE".tmp $OUTFILE
+fi
+
+if [ ! -z "$TMP" ]; then
+    rm $TMP
+fi

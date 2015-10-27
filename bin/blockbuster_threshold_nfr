@@ -1,0 +1,235 @@
+#!/bin/bash
+#PBS -l nodes=1:ppn=4
+
+<<"copyright_info"
+blockbuster_threshold_nfr: determine optimal block group height required as a parameter to blockbuster while defining nucleosome free regions (NFRs)
+Copyright (C) 2015  Sachin Pundhir (pundhir@binf.ku.dk)
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program.  If not, see <http://www.gnu.org/licenses/>.
+copyright_info
+
+OUTDIR="optimizeThreshold";
+NFRDIR="nfr"
+GENOME="mm9"
+OPTION=0
+EXTEND_REP1=0
+EXTEND_REP2=0
+BLOCK_BKG_PERCENTILE="0.0005"
+
+#### usage ####
+usage() {
+    echo
+	echo Program: "blockbuster_threshold_nfr (determine optimal block group height required as a parameter to blockbuster while defining nucleosome free regions (NFRs))"
+	echo Author: BRIC, University of Copenhagen, Denmark
+	echo Version: 1.0
+	echo Contact: pundhir@binf.ku.dk
+	echo "Usage: blockbuster_threshold_nfr -i <file> -j <file> -k <file> [OPTIONS]"
+	echo "Options:"
+	echo " -i <file>   [mapped reads in BAM format (replicate 1)]"
+	echo " -j <file>   [mapped reads in BAM format (replicate 2)]"
+    echo " -k <file>   [optimal histone peaks region (regionPeak file)]"
+    echo "[OPTIONS]"
+	echo " -l <file>   [optimal transcription factor peaks summit (summit file)]"
+    echo " -o <dir>    [output directory to store results (default: ./optimizeThreshold)]"
+    echo " -n <dir>    [input directory containing sizefactor files (default: ./nfr)]"
+    echo " -g <file>   [genome: mm9 or hg19 (default: mm9)]"
+    echo " -p <int>    [options to compute expression (default: 0)]"
+    echo "             [0 -> total normalized expression]"
+    echo "             [1 -> median normalized expression of block groups]"
+    echo "             [2 -> median normalized expression of block]"
+    echo "             [3 -> maximum normalized expression of block groups]"
+    echo "             [4 -> maximum normalized expression of block]"
+    echo " -c <int>    [extend 3' end of reads by input number of bases (replicate 1)]"
+    echo " -d <int>    [extend 3' end of reads by input number of bases (replicate 2)]"
+    echo " -z <float>  [percentile cutoff to optimize blockbuster threshold (default: 0.0005)]"
+	echo " -h          [help]"
+	echo
+	exit 0
+}
+
+#### parse options ####
+while getopts i:j:k:l:o:n:g:p:c:d:z:h ARG; do
+	case "$ARG" in
+		i) BAM_REP1=$OPTARG;;
+		j) BAM_REP2=$OPTARG;;
+		k) PEAKREGION=$OPTARG;;
+		l) TFREGION=$OPTARG;;
+        o) OUTDIR=$OPTARG;;
+        n) NFRDIR=$OPTARG;;
+        g) GENOME=$OPTARG;;
+        p) OPTION=$OPTARG;;
+        c) EXTEND_REP1=$OPTARG;;
+        d) EXTEND_REP2=$OPTARG;;
+        z) BLOCK_BKG_PERCENTILE=$OPTARG;;
+		h) HELP=1;;
+	esac
+done
+
+## usage, if necessary file and directories are given/exist
+if [ ! -f "$BAM_REP1" -o ! -f "$BAM_REP2" -o ! -f "$PEAKREGION" -o "$HELP" ]; then
+	usage
+fi
+
+###################
+#helperfunction
+function wait_for_jobs_to_finish {
+    for job in `jobs -p`
+    do
+        echo $job
+        wait $job
+    done
+    echo $1
+}
+###############
+
+echo -n "Create directory structure.. "
+if [ ! -d "$OUTDIR" ]; then
+    mkdir $OUTDIR
+fi
+
+if [ ! -d "$NFRDIR" ]; then
+    mkdir $NFRDIR
+    mkdir $NFRDIR/rep1/
+    mkdir $NFRDIR/rep2/
+fi
+echo "done"
+
+echo -n "Populating files based on input genome ($GENOME)... "
+GENOME_FILE=$(initialize_genome -i $PAREPATH/data/annotations/GENOME_FILE -g $GENOME)
+GENOME_FILE=$PAREPATH/data/annotations/$GENOME_FILE
+if [ ! -f "$GENOME_FILE" ]; then
+    echo
+    echo "computation for $GENOME is not feasible yet"
+    echo "please add the chromosome size file for $GENOME at $PAREPATH/data/annotations"
+    echo "also update the $PAREPATH/data/annotations/GENOME_FILE"
+    echo
+    usage
+fi
+echo done
+
+## print choosen parameters to file
+echo "#input BAM file (Rep1): $BAM_REP1
+#input BAM file (Rep2): $BAM_REP2
+#input histone peak region file: $PEAKREGION
+#input TF peaks summit file: $TFREGION
+#output directory: $OUTDIR
+#input directory containing sizefactor files: $NFRDIR
+#reference genome: $GENOME
+#coor2expr option: $OPTION
+#extend 3' end of reads (Rep1): $EXTEND_REP1
+#extend 3' end of reads (Rep2): $EXTEND_REP2
+#percentile cutoff to optimize threshold: $BLOCK_BKG_PERCENTILE" > $OUTDIR/PARAMETERS
+
+echo -n "Create index of input BAM files.. "
+if [ ! -e "$BAM_REP1.bai" ]; then
+    samtools index $BAM_REP1
+fi
+if [ ! -e "$BAM_REP2.bai" ]; then
+    samtools index $BAM_REP2
+fi
+echo "done"
+
+echo -n "Compute size factor for each replicate.. "
+if [ ! -e "$NFRDIR/sizeFactorCount" ]; then
+    estimateSizeFactor.pl -o b -b $BAM_REP1,$BAM_REP2 -x $PEAKREGION -r $NFRDIR/sizeFactorCount -e $EXTEND_REP1,$EXTEND_REP2 -g $GENOME -p $PAREPATH/share/R/
+fi
+
+if [ ! -e "$NFRDIR/sizeFactor" ]; then
+    estimateSizeFactor.pl -o c -r $NFRDIR/sizeFactorCount -p $PAREPATH/share/R/ > $NFRDIR/sizeFactor
+fi
+echo "done"
+
+echo -n "Retrieve size factors to normalize the expression of reads from replicate 1 and 2... "
+SIZEFACTOR_REP1=`head -n 1 $NFRDIR/sizeFactor | cut -f 2`;
+SIZEFACTOR_REP2=`head -n 2 $NFRDIR/sizeFactor | tail -n 1 | cut -f 2`;
+echo "done"
+
+echo -n "Compute mean length of histone peaks... "
+HISTONE_MEDIAN_LENGTH=`$PAREPATH/share/R/bedStat.R -i $PEAKREGION | grep Mean | sed 's/Mean=//g'`
+echo "done"
+
+<<COMMENT1
+COMMENT1
+
+echo -n "Initialize histone peak region file based on whether input is region or summit file.. "
+if [ "$HISTONE_MEDIAN_LENGTH" -eq 1 ]; then
+    echo -n "(summit).. "
+    zless $PEAKREGION | perl -ane '$mid=$F[1]; $start=$mid-300; $end=$mid+300; print "$F[0]\t$start\t$end\n";' > $OUTDIR/PEAKREGION
+    PEAKREGION="$OUTDIR/PEAKREGION"
+else
+    echo -n "(region).. "
+fi
+echo "done"
+
+## Histone peak analysis (replicate 1)
+echo -n "Determine normalized read count for histone peaks (replicate 1)... "
+for i in `zless $PEAKREGION | perl -ane '$start=$F[1]; $end=$F[2]; print "$F[0]:$start-$end\n";'`; do coor2expr -p $OPTION -i $i -j $BAM_REP1 -k $SIZEFACTOR_REP1 -d -e $EXTEND_REP1 -g $GENOME; done > $OUTDIR/histone.reads.rep1 &
+echo "done"
+
+## Histone peak analysis (replicate 2)
+echo -n "Determine normalized read count for histone peaks (replicate 2)... "
+for i in `zless $PEAKREGION | perl -ane '$start=$F[1]; $end=$F[2]; print "$F[0]:$start-$end\n";'`; do coor2expr -p $OPTION -i $i -j $BAM_REP2 -k $SIZEFACTOR_REP2 -d -e $EXTEND_REP2 -g $GENOME; done > $OUTDIR/histone.reads.rep2 &
+echo "done"
+
+if [ ! -z "$TFREGION" ]; then
+    ## TF peak analysis (replicate 1)
+    echo -n "Determine normalized read count for TF peaks (replicate 1)... "
+    #for i in `zless $TFREGION | perl -ane '$start=$F[1]-25; $end=$F[1]+25; print "$F[0]:$start-$end\n";'`; do coor2expr -p $OPTION -i $i -j $BAM_REP1 -k $SIZEFACTOR_REP1 -d -e $EXTEND_REP1 -g $GENOME; done > $OUTDIR/tf.reads.rep1 &
+    for i in `zless $TFREGION | perl -ane 'if($F[2]-$F[1]>1) { $mid=sprintf("%0.0f", ($F[1]+$F[2])/2); } else { $mid=$F[1]; } $start=$mid-25; $end=$mid+25; print "$F[0]:$start-$end\n";'`; do coor2expr -p $OPTION -i $i -j $BAM_REP1 -k $SIZEFACTOR_REP1 -d -e $EXTEND_REP1 -g $GENOME; done > $OUTDIR/tf.reads.rep1 &
+    echo "done"
+
+    ## TF peak analysis (replicate 2)
+    echo -n "Determine normalized read count for TF peaks (replicate 2)... "
+    #for i in `zless $TFREGION | perl -ane '$start=$F[1]-25; $end=$F[1]+25; print "$F[0]:$start-$end\n";'`; do coor2expr -p $OPTION -i $i -j $BAM_REP2 -k $SIZEFACTOR_REP2 -d -e $EXTEND_REP2 -g $GENOME; done > $OUTDIR/tf.reads.rep2 &
+    for i in `zless $TFREGION | perl -ane 'if($F[2]-$F[1]>1) { $mid=sprintf("%0.0f", ($F[1]+$F[2])/2); } else { $mid=$F[1]; } $start=$mid-25; $end=$mid+25; print "$F[0]:$start-$end\n";'`; do coor2expr -p $OPTION -i $i -j $BAM_REP2 -k $SIZEFACTOR_REP2 -d -e $EXTEND_REP2 -g $GENOME; done > $OUTDIR/tf.reads.rep2 &
+    echo "done"
+fi
+
+## shuffle histone peaks
+#zless $PEAKREGION $EXCL_REGION | cut -f 1,2,3 > $OUTDIR/EXCL_REGION.bed
+zless $PEAKREGION | cut -f 1,2,3 > $OUTDIR/EXCL_REGION.bed
+zless $PEAKREGION | shuffleBed -seed 1 -noOverlapping -i stdin -g $GENOME_FILE -excl $OUTDIR/EXCL_REGION.bed > $OUTDIR/PEAKREGION.SHUFFLED
+
+## shuffled histone peak analysis (replicate 1)
+echo -n "Determine normalized read count for shuffled histone peaks (replicate 1)... "
+for i in `zless $OUTDIR/PEAKREGION.SHUFFLED | perl -ane '$start=$F[1]; $end=$F[2]; print "$F[0]:$start-$end\n";'`; do coor2expr -p $OPTION -i $i -j $BAM_REP1 -k $SIZEFACTOR_REP1 -d -e $EXTEND_REP1 -g $GENOME; done > $OUTDIR/bkg.reads.rep1 &
+echo "done"
+
+## shuffled histone peak analysis (replicate 2)
+echo -n "Determine normalized read count for shuffled histone peaks (replicate 2)... "
+for i in `zless $OUTDIR/PEAKREGION.SHUFFLED | perl -ane '$start=$F[1]; $end=$F[2]; print "$F[0]:$start-$end\n";'`; do coor2expr -p $OPTION -i $i -j $BAM_REP2 -k $SIZEFACTOR_REP2 -d -e $EXTEND_REP2 -g $GENOME; done > $OUTDIR/bkg.reads.rep2 &
+echo "done"
+
+wait_for_jobs_to_finish "Determine normalized read count for histone, TF and suffled histone peaks in each replicate (replicate 1 and 2)"
+
+echo -n "Make final output files (reads.countStat)... "
+paste $OUTDIR/histone.reads.rep1 $OUTDIR/histone.reads.rep2 > $OUTDIR/histone.reads.countStat
+paste $OUTDIR/bkg.reads.rep1 $OUTDIR/bkg.reads.rep2 > $OUTDIR/bkg.reads.countStat
+if [ ! -z "$TFREGION" ]; then
+    paste $OUTDIR/tf.reads.rep1 $OUTDIR/tf.reads.rep2 > $OUTDIR/tf.reads.countStat
+fi
+echo "done"
+
+echo -n "Plot distribution of normalized read counts for histone, tf and background shuffled peaks... "
+#THRESHOLD=`Rscript $PAREPATH/share/R/blockbuster_threshold_nfr.R $OUTDIR/histone.reads.countStat $OUTDIR/bkg.reads.countStat $OUTDIR/tf.reads.countStat $OUTDIR/blockbuster_threshold.pdf 1 $BLOCK_BKG_PERCENTILE 2>/dev/null`
+THRESHOLD=$($PAREPATH/share/R/blockbuster_threshold_nfr.R -i $OUTDIR/histone.reads.countStat -j $OUTDIR/bkg.reads.countStat -k $OUTDIR/tf.reads.countStat -o $OUTDIR/blockbuster_threshold.pdf -m 1 -p $BLOCK_BKG_PERCENTILE 2>/dev/null)
+THRESHOLD=$(echo $THRESHOLD | sed -E 's/\s+.*//g');
+
+if [ -z "$THRESHOLD" ]; then
+    THRESHOLD=5
+fi
+
+echo -e "# size factor (rep 1)\tsize factor (rep 2)\thistone mean length\tthreshold" > $OUTDIR/blockbuster_threshold.txt;
+echo -e "$SIZEFACTOR_REP1\t$SIZEFACTOR_REP2\t$HISTONE_MEDIAN_LENGTH\t$THRESHOLD" >> $OUTDIR/blockbuster_threshold.txt;
+echo "All done. Bye"

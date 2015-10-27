@@ -1,0 +1,88 @@
+#!/bin/bash
+#PBS -l nodes=1:ppn=4
+
+<<"copyright_info"
+bam2bwForChIP: convert bam to bigWig format with read extension
+Copyright (C) 2015  Sachin Pundhir (pundhir@binf.ku.dk)
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program.  If not, see <http://www.gnu.org/licenses/>.
+copyright_info
+
+## DEPENDENCIES
+CHRSIZE="$PAREPATH/data/annotations/mouse.mm9.genome"
+EXTEND=0
+
+#### usage ####
+usage() {
+	echo Program: "bam2bwForChIP (convert bam to bigWig format with read extension)"
+	echo Author: BRIC, University of Copenhagen, Denmark
+	echo Version: 1.0
+	echo Contact: pundhir@binf.ku.dk
+	echo "Usage: bam2bwForChIP -i <file> [OPTIONS]"
+    echo "[INPUT]"
+	echo " -i <file>   [input BAM file]"
+	echo "[OPTIONS]:"
+    echo " -o <dir>    [output directory (default: bam file location)]"
+    echo " -c <file>   [file having chromosome's size. required for genomecov]"
+    echo "             [default: ~/software/RNAPipe/data/Mus_musculus/Ensembl/NCBIM37/ChromInfoRef.txt]"
+    echo " -k          [keep bedGraph file also]"
+    echo " -e <int>    [extend 3' end of reads by input number of bases (useful for ChIP-seq data)]"
+	echo " -h          [help]"
+	echo
+	exit 0
+}
+
+#### parse options ####
+while getopts i:o:c:ke:h ARG; do
+	case "$ARG" in
+		i) BAMFILE=$OPTARG;;
+        o) OUTDIR=$OPTARG;;
+        c) CHRSIZE=$OPTARG;;
+        k) KEEP=1;;
+        e) EXTEND=$OPTARG;;
+		h) HELP=1;;
+	esac
+done
+
+## usage, if necessary file and directories are given/exist
+if [ ! -f "$BAMFILE" -o "$HELP" ]; then
+	usage
+fi
+
+## retrieve file name
+if [ ! -z "$OUTDIR" ]; then
+    ID=`echo $BAMFILE | perl -ane '$_=~s/^.+\///g; $_=~s/\..+$//g; print $_;'`;
+
+    ## create bigwig files for viualization at the UCSC genome browser
+    bedtools bamtobed -i $BAMFILE -bed12 | bedtools slop -i stdin -g $CHRSIZE -s -l 0 -r $EXTEND | bedtools genomecov -bg -i stdin -g $CHRSIZE -split > $OUTDIR/$ID.bedGraph
+
+    bedGraphToBigWig $OUTDIR/$ID.bedGraph $CHRSIZE $OUTDIR/$ID.bw
+
+    if [ -z "$KEEP" ]; then
+        rm $OUTDIR/$ID.bedGraph 
+    fi
+else
+    ID=`echo $BAMFILE | perl -ane '$_=~s/\.bam*//g; print $_;'`;
+
+    ## create bigwig files for viualization at the UCSC genome browser
+    bedtools bamtobed -i $BAMFILE -bed12 | bedtools slop -i stdin -g $CHRSIZE -s -l 0 -r $EXTEND | bedtools genomecov -bg -i stdin -g $CHRSIZE -split > $ID.bedGraph
+
+    bedGraphToBigWig $ID.bedGraph $CHRSIZE $ID.bw
+
+    if [ -z "$KEEP" ]; then
+        rm $ID.bedGraph 
+    fi
+fi
+
+#bigWigCmd = "./src/bamToBed -i " + name + "/mapped.bam " + "| ./src/slopBed -i stdin -g src/" + chromFile + " -s -l -0 -r " + str(args.fragment_length[0]-readLength) + " | ./src/genomeCoverageBed -bg -i stdin -g src/" + chromFile + "| ./src/wigToBigWig stdin src/" + chromFile + " " + name + "/mapped.bw"

@@ -1,0 +1,5 @@
+Due to large size (194 MB), I have placed the model files at http://servers.binf.ku.dk/pare/download/model/nfrDirectionModelRandomForest.session.gz
+
+Please downloaded it within this directory using following command:
+
+wget http://servers.binf.ku.dk/pare/download/model/nfrDirectionModelRandomForest.session.gz 

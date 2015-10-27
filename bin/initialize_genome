@@ -1,0 +1,57 @@
+#!/bin/bash
+#PBS -l nodes=1:ppn=4
+
+<<"copyright_info"
+initialize_genome: given a genome name, return the location of genome file
+Copyright (C) 2015  Sachin Pundhir (pundhir@binf.ku.dk)
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program.  If not, see <http://www.gnu.org/licenses/>.
+copyright_info
+
+GENOME="mm9"
+
+#### usage ####
+usage() {
+	echo Program: "initialize_genome (given a genome name, return the location of genome file)"
+	echo Author: BRIC, University of Copenhagen, Denmark
+	echo Version: 1.0
+	echo Contact: pundhir@binf.ku.dk
+	echo "Usage: initialize_genome -i <file> -g <genome>"
+	echo "Options:"
+	echo " -i <file>   [input file containing genome information]"
+    echo "[OPTIONS]"
+    echo " -g <string> [genome (default: mm9)]"
+	echo " -h          [help]"
+	echo
+	exit 0
+}
+
+#### parse options ####
+while getopts i:g:h ARG; do
+	case "$ARG" in
+		i) FILE=$OPTARG;;
+        g) GENOME=$OPTARG;;
+		h) HELP=1;;
+	esac
+done
+
+## usage, if necessary file and directories are given/exist
+if [ ! -f "$FILE" -o "$HELP" ]; then
+	usage
+fi
+
+## determine genome file location
+grep -w $GENOME $FILE | perl -ane 'print "$F[1]";'
+
+exit

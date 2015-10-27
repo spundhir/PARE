@@ -1,0 +1,122 @@
+#!/bin/bash
+#PBS -l nodes=1:ppn=4
+
+<<"copyright_info"
+bed2binExpr: compute expression for input BED coordinates divided into bins
+Copyright (C) 2015  Sachin Pundhir (pundhir@binf.ku.dk)
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program.  If not, see <http://www.gnu.org/licenses/>.
+copyright_info
+
+GENOME="mm9"
+WINDOW=500
+BIN=20
+
+#### usage ####
+usage() {
+    echo
+	echo Program: "bed2binExpr (compute expression for input BED coordinates divided into bins)"
+	echo Author: BRIC, University of Copenhagen, Denmark
+	echo Version: 1.0
+	echo Contact: pundhir@binf.ku.dk
+	echo "Usage: bed2binExpr -i <file> -j <file> [OPTIONS]"
+	echo "Options:"
+	echo " -i <coor>   [input file in BED format (can be stdin)]"
+    echo " -j <file>   [input mapped reads in BAM format]"
+    echo "             [if multiple seperate by a comma]"
+    echo "[OPTIONS]"
+    echo " -g <string> [genome (default: mm9)]"
+    echo " -w <int>    [window size (default: 500)]"
+    echo " -n <int>    [bin size within the window (default: 20)]"
+    echo " -r          [require same strandedness (upstream: -; downstream: +)]"
+	echo " -h          [help]"
+	echo
+	exit 0
+}
+
+#### parse options ####
+while getopts i:j:g:w:n:rh ARG; do
+	case "$ARG" in
+		i) BEDFILE=$OPTARG;;
+		j) BAMFILES=$OPTARG;;
+        g) GENOME=$OPTARG;;
+        w) WINDOW=$OPTARG;;
+        n) BIN=$OPTARG;;
+        r) SAME_STRAND=1;;
+		h) HELP=1;;
+	esac
+done
+
+## usage, if necessary file and directories are given/exist
+if [ -z "$BEDFILE" -o -z "$BAMFILES" -o "$HELP" ]; then
+	usage
+fi
+
+###################
+#helperfunction
+function wait_for_jobs_to_finish {
+    for job in `jobs -p`
+    do
+        echo $job
+        wait $job
+    done
+    echo $1
+}
+###############
+
+## populating files based on input genome
+GENOME_FILE=$(initialize_genome -i $PAREPATH/data/annotations/GENOME_FILE -g $GENOME)
+GENOME_FILE=$PAREPATH/data/annotations/$GENOME_FILE
+if [ ! -f "$GENOME_FILE" ]; then
+    echo
+    echo "computation for $GENOME is not feasible yet"
+    echo "please add the chromosome size file for $GENOME at $PAREPATH/data/annotations"
+    echo "also update the $PAREPATH/data/annotations/GENOME_FILE"
+    echo
+    usage
+fi
+
+## create temporary BED file if input is from stdin
+if [ "$BEDFILE" == "stdin" ]; then
+    TMP=$(cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w 32 | head -n 1)
+    while read LINE; do
+        echo ${LINE}
+    done | perl -ane '$line=""; foreach(@F) { $line.="$_\t"; } $line=~s/\t$//g; print "$line\n";' > $TMP
+    BEDFILE=$TMP
+fi
+
+## parse input bam files in an array
+oIFS=$IFS
+IFS=","
+BAMFILES_ARR=($BAMFILES)
+BAMFILES_COUNT=${#BAMFILES_ARR[@]}
+IFS=$oIFS
+
+BIN_COUNT=$(($((WINDOW*2))/$BIN))
+
+if [ "$WINDOW" -eq "$BIN" ]; then
+    if [ -z "$SAME_STRAND" ]; then
+        paste $BEDFILE <(paste <(cat $BEDFILE | bed2window -i stdin -w 0 -s | bed2window -i stdin -w $WINDOW -l -s | bed2expr -i stdin -j $BAMFILES -m -d -g $GENOME | perl -ane '$start=scalar(@F)-'$BAMFILES_COUNT'; $end=scalar(@F)-1; $line=""; foreach(@F[$start..$end]) { $line.="$_\t"; } $line=~s/\t$//g; print "$line\n";') <(cat $BEDFILE | bed2window -i stdin -w 0 -s | bed2window -i stdin -w $WINDOW -r -s | bed2expr -i stdin -j $BAMFILES -m -d -g $GENOME | perl -ane '$start=scalar(@F)-'$BAMFILES_COUNT'; $end=scalar(@F)-1; $line=""; foreach(@F[$start..$end]) { $line.="$_\t"; } $line=~s/\t$//g; print "$line\n";'))
+    else
+        paste $BEDFILE <(paste <(cat $BEDFILE | bed2window -i stdin -w 0 -s | bed2window -i stdin -w $WINDOW -l -s -m | bed2expr -i stdin -j $BAMFILES -m -d -g $GENOME -r | perl -ane '$start=scalar(@F)-'$BAMFILES_COUNT'; $end=scalar(@F)-1; $line=""; foreach(@F[$start..$end]) { $line.="$_\t"; } $line=~s/\t$//g; print "$line\n";') <(cat $BEDFILE | bed2window -i stdin -w 0 -s | bed2window -i stdin -w $WINDOW -r -s -m | bed2expr -i stdin -j $BAMFILES -m -d -g $GENOME -r | perl -ane '$start=scalar(@F)-'$BAMFILES_COUNT'; $end=scalar(@F)-1; $line=""; foreach(@F[$start..$end]) { $line.="$_\t"; } $line=~s/\t$//g; print "$line\n";'))
+    fi
+else
+    paste $BEDFILE <(while read LINE; do
+        echo $LINE | bed2window -i stdin -w $WINDOW -s | bedtools makewindows -b stdin -n $BIN_COUNT | bed2expr -i stdin -j $BAMFILES -m -d -g $GENOME | perl -ane 'BEGIN { @expr=(); } $start=scalar(@F)-'$BAMFILES_COUNT'; $end=scalar(@F)-1; push(@expr, @F[$start..$end]); END { $line=""; foreach(@expr) { $line.="$_\t"; } $line=~s/\t$//g; print "$line\n"; }'
+    done < $BEDFILE)
+fi
+
+if [ ! -z "$TMP" ]; then
+    rm $TMP
+fi
