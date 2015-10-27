@@ -103,7 +103,6 @@ Dependency
 
     7. download macs2 version 2.1.0 from https://github.com/taoliu/MACS/, go to the download location and install as mentioned in INSTALL.rst file
 
-
 Usage
 =====
 
