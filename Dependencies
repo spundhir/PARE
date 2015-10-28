@@ -4,10 +4,10 @@ export PATH=$PATH:$PAREPATH/bin
 export PERL5LIB=$PERL5LIB:$PAREPATH/share/perl/
 
 ## execute PARE
-pare -i data/h3k4me1_helas3_Rep1.bam -j data/h3k4me1_helas3_Rep2.bam -k data/optimal.h3k4me1_helas3_Rep0_Vs_control_helas3_Rep0.regionPeak.gz -o results -m hg19 -p -v 3000 &> pare.log
+pare -i data/h3k4me1_helas3_Rep1.bam -j data/h3k4me1_helas3_Rep2.bam -o results -m hg19 -p &> pare.log
 
 ## dependent programs:
-1. macs2
+1. macs2 (>= v2.1.0)
 2. samtools (>= v1.2)
 3. bedtools (>= v2.23.0)
 4. featureCounts
