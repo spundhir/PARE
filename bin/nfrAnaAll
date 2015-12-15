@@ -202,11 +202,11 @@ if [ ! -s "$OUTDIR/optimizeThreshold/blockbuster_threshold.txt" ] && [ -z "$MINC
     echo -n "Optimize the threshold for max length and min number of reads in a block group (`date`).. "
     OPTION=0
     if [ -f "$TFSUMMIT" ]; then
-        echo "command: blockbuster_threshold_nfr -i $REP1 -j $REP2 -k $PEAKREGION -l $TFSUMMIT -o $OUTDIR/optimizeThreshold -n $OUTDIR -g $GENOME -p $OPTION -c $EXTEND_REP1 -d $EXTEND_REP2 -z $BLOCK_BKG_PERCENTILE" >$OUTDIR/logs/blockbuster_threshold_nfr.log
-        blockbuster_threshold_nfr -i $REP1 -j $REP2 -k $PEAKREGION -l $TFSUMMIT -o $OUTDIR/optimizeThreshold -n $OUTDIR -g $GENOME -p $OPTION -c $EXTEND_REP1 -d $EXTEND_REP2 -z $BLOCK_BKG_PERCENTILE &>>$OUTDIR/logs/blockbuster_threshold_nfr.log
+        echo "command: blockbuster_threshold_nfr -i $REP1 -j $REP2 -k $PEAKREGION -l $TFSUMMIT -o $OUTDIR/optimizeThreshold -n $OUTDIR -g $GENOME -p $OPTION -c $EXTEND_REP1 -d $EXTEND_REP2 -z $BLOCK_BKG_PERCENTILE" > $OUTDIR/logs/blockbuster_threshold_nfr.log
+        blockbuster_threshold_nfr -i $REP1 -j $REP2 -k $PEAKREGION -l $TFSUMMIT -o $OUTDIR/optimizeThreshold -n $OUTDIR -g $GENOME -p $OPTION -c $EXTEND_REP1 -d $EXTEND_REP2 -z $BLOCK_BKG_PERCENTILE >> $OUTDIR/logs/blockbuster_threshold_nfr.log 2>&1
     else
-        echo "command: blockbuster_threshold_nfr -i $REP1 -j $REP2 -k $PEAKREGION -o $OUTDIR/optimizeThreshold -n $OUTDIR -g $GENOME -p $OPTION -c $EXTEND_REP1 -d $EXTEND_REP2 -z $BLOCK_BKG_PERCENTILE" >$OUTDIR/logs/blockbuster_threshold_nfr.log
-        blockbuster_threshold_nfr -i $REP1 -j $REP2 -k $PEAKREGION -o $OUTDIR/optimizeThreshold -n $OUTDIR -g $GENOME -p $OPTION -c $EXTEND_REP1 -d $EXTEND_REP2 -z $BLOCK_BKG_PERCENTILE &>>$OUTDIR/logs/blockbuster_threshold_nfr.log
+        echo "command: blockbuster_threshold_nfr -i $REP1 -j $REP2 -k $PEAKREGION -o $OUTDIR/optimizeThreshold -n $OUTDIR -g $GENOME -p $OPTION -c $EXTEND_REP1 -d $EXTEND_REP2 -z $BLOCK_BKG_PERCENTILE" > $OUTDIR/logs/blockbuster_threshold_nfr.log
+        blockbuster_threshold_nfr -i $REP1 -j $REP2 -k $PEAKREGION -o $OUTDIR/optimizeThreshold -n $OUTDIR -g $GENOME -p $OPTION -c $EXTEND_REP1 -d $EXTEND_REP2 -z $BLOCK_BKG_PERCENTILE >> $OUTDIR/logs/blockbuster_threshold_nfr.log 2>&1
     fi
     HEIGHT_THRESHOLD=`grep -v "^\#" $OUTDIR/optimizeThreshold/blockbuster_threshold.txt | perl -ane 'print "$F[3]";'`;
     MINCLUSTERHEIGHT=$HEIGHT_THRESHOLD
