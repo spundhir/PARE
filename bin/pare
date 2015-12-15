@@ -30,7 +30,7 @@ BLOCK_BKG_PERCENTILE="0.0005"
 usage() {
 	echo Program: "pare (Predict Active Regulatory Elements using histone marks)"
 	echo Author: BRIC, University of Copenhagen, Denmark
-	echo Version: 0.04
+	echo Version: 0.05
 	echo Contact: pundhir@binf.ku.dk
 	echo "Usage: pare -i <file> -j <file> [OPTIONS]"
 	echo "Options:"
