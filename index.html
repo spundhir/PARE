@@ -87,20 +87,20 @@ PARE exploits two important properties of active enhancer and promoter regions, 
 Author: BRIC, University of Copenhagen, Denmark
 Version: 0.05
 Contact: pundhir@binf.ku.dk
-Usage: pare -i <file> -j <file> [OPTIONS]
+Usage: pare -i &lt;file&gt; -j <file> [OPTIONS]
 Options:
-    -i <file>   [mapped reads in BAM format (replicate 1)]
-    -j <file>   [mapped reads in BAM format (replicate 2)]
+    -i &lt;file&gt;   [mapped reads in BAM format (replicate 1)]
+    -j &lt;file&gt;   [mapped reads in BAM format (replicate 2)]
 [OPTIONS]
-    -k <file>   [optimal histone peaks region in BED format]
+    -k &lt;file&gt;   [optimal histone peaks region in BED format]
                 [-k will get precendence over -c parameter]
-    -c <file>   [mapped reads in BAM format (control)]
-    -o <dir>    [output directory to store results (default: results)
-    -m <string> [genome (default: mm9)]
+    -c &lt;file&gt;   [mapped reads in BAM format (control)]
+    -o &lt;dir&gt;    [output directory to store results (default: results)
+    -m &lt;string&gt; [genome (default: mm9)]
     -p          [run in parallel]
-    -n <int>    [minimum length of nucleosome free region (default: 20)]
-    -v <int>    [maximum length of nucleosome free region (default: 1000)]
-    -t <float>  [FDR at which to consider a NFR as significant (default: 0.05)]
+    -n &lt;int&gt;    [minimum length of nucleosome free region (default: 20)]
+    -v &lt;int&gt;    [maximum length of nucleosome free region (default: 1000)]
+    -t &lt;float&gt;  [FDR at which to consider a NFR as significant (default: 0.05)]
     -h          [help]
 </code></pre>
 
