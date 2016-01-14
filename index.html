@@ -82,6 +82,29 @@ PARE exploits two important properties of active enhancer and promoter regions, 
 </code></pre>
 
 <h1>
+<a id="PARAMETERS" class="anchor" href="#parameters" aria-hidden="true"><span class="octicon octicon-link"></span></a>PARAMETERS</h1>
+<pre><code>Program: pare (Predict Active Regulatory Elements using histone marks)
+Author: BRIC, University of Copenhagen, Denmark
+Version: 0.05
+Contact: pundhir@binf.ku.dk
+Usage: pare -i <file> -j <file> [OPTIONS]
+Options:
+    -i <file>   [mapped reads in BAM format (replicate 1)]
+    -j <file>   [mapped reads in BAM format (replicate 2)]
+[OPTIONS]
+    -k <file>   [optimal histone peaks region in BED format]
+                [-k will get precendence over -c parameter]
+    -c <file>   [mapped reads in BAM format (control)]
+    -o <dir>    [output directory to store results (default: results)
+    -m <string> [genome (default: mm9)]
+    -p          [run in parallel]
+    -n <int>    [minimum length of nucleosome free region (default: 20)]
+    -v <int>    [maximum length of nucleosome free region (default: 1000)]
+    -t <float>  [FDR at which to consider a NFR as significant (default: 0.05)]
+    -h          [help]
+</code></pre>
+
+<h1>
 <a id="example" class="anchor" href="#example" aria-hidden="true"><span class="octicon octicon-link"></span></a>Example</h1>
 
 <p>An usage example of PARESuite is shown below. As input, the method requires mapped reads in BAM format. An example dataset and expected results are available at <a href="http://servers.binf.ku.dk/pare/download/test_run/">http://servers.binf.ku.dk/pare/download/test_run/</a></p>
