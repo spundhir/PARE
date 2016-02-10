@@ -127,10 +127,15 @@ Input
     As input, the method requires mapped reads in BAM format. The name of the input file(s) should be formatted as
 
     Input file name (replicate 1): <unique id><Rep1>.bam (example: h3k4me1_Rep1.bam)
+
     Input file name (replicate 2): <unique id><Rep2>.bam (example: h3k4me1_Rep2.bam)
+
     .
+
     .
+
     .
+
     Input file name (replicate N): <unique id><RepN>.bam (example: h3k4me1_RepN.bam)
 
     The chromosome identifier in the input BAM files should start with chr, for example as chrY and not like Y.
