@@ -130,7 +130,13 @@ Input
 
     Input file name (replicate 2): <unique id><Rep2>.bam (example: h3k4me1_Rep2.bam)
 
-    etc
+    .
+
+    .
+
+    .
+
+    Input file name (replicate N): <unique id><RepN>.bam (example: h3k4me1_RepN.bam)
 
     The chromosome identifier in the input BAM files should start with chr, for example as chrY and not like Y.
 
