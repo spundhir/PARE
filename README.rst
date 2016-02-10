@@ -3,6 +3,10 @@
 README file for PARE (v0.06)
 ====================================================================
 
+Important Note
+==============
+    PARE now supports one or more BAM files (replicates) as input. Previous versions of PARE (0.01 - 0.05) supports only two BAM files (replicates) as input.
+
 Description
 ===========
     PARE is a computational method to Predict Active Regulatory Elements (enhancers and promoters). It implements a novel approach to detect Peak-Valley-Peak (PVP) pattern defined based on H3K4me1 and H3K4me3 signal at enhancers and promoters, respectively.
