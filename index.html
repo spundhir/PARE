@@ -81,15 +81,16 @@ PARE exploits two important properties of active enhancer and promoter regions, 
 <pre><code>b) RESULTS.UCSC: file to view the enhancer and promoter regions in UCSC browser.
 </code></pre>
 
-<h1>
+h1>
 <a id="param" class="anchor" href="#param" aria-hidden="true"><span class="octicon octicon-link"></span></a>PARAMETERS</h1>
 <pre><code>Program: pare (Predict Active Regulatory Elements using histone marks)
 Author: BRIC, University of Copenhagen, Denmark
-Version: 0.05
+Version: 0.06
 Contact: pundhir@binf.ku.dk
-Usage: pare -i &lt;file&gt; -j &lt;file&gt; [OPTIONS]
+Usage: pare -i &lt;file(s)&gt; [OPTIONS]
 Options:
     -i &lt;file&gt;   [mapped reads in BAM format (replicate 1)]
+                [if multiple, please separate them by a comma]
 [OPTIONS]
     -k &lt;file&gt;   [optimal histone peaks region in BED format]
                 [-k will get precendence over -c parameter]
@@ -108,7 +109,7 @@ Options:
 
 <p>An usage example of PARESuite is shown below. As input, the method requires mapped reads in BAM format. An example dataset and expected results are available at <a href="http://servers.binf.ku.dk/pare/download/test_run/">http://servers.binf.ku.dk/pare/download/test_run/</a></p>
 
-<pre><code>pare -i data/h3k4me1_helas3_Rep1.bam -j data/h3k4me1_helas3_Rep2.bam -k \
+<pre><code>pare -i data/h3k4me1_helas3_Rep1.bam,data/h3k4me1_helas3_Rep2.bam -k \
 data/optimal.h3k4me1_helas3_Rep0_Vs_control_helas3_Rep0.regionPeak.gz -o results \
 -m hg19 -p &amp;&gt; pare.log
 </code></pre>
