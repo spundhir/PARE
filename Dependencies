@@ -5,7 +5,7 @@ export PERL5LIB=$PERL5LIB:$PAREPATH/share/perl/
 
 ## execute PARE
 ## test data available at http://servers.binf.ku.dk/pare/download/test_run/
-pare -i data/h3k4me1_helas3_Rep1.bam -j data/h3k4me1_helas3_Rep2.bam -o results -m hg19 -p &> pare.log
+pare -i data/h3k4me1_helas3_Rep1.bam,data/h3k4me1_helas3_Rep2.bam -o results -m hg19 -p &> pare.log
 
 ## dependent programs:
 1. macs2 (>= v2.1.0)

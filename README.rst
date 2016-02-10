@@ -1,6 +1,6 @@
 
 ====================================================================
-README file for PARE (v0.05)
+README file for PARE (v0.06)
 ====================================================================
 
 Description
@@ -13,7 +13,7 @@ Description
 
 Version
 =======
-    0.05
+    0.06
 
 Programs and datasets
 =====================
@@ -108,14 +108,14 @@ Usage
 
     PARESuite is called with the following parameters
 
-    pare -i <BAM file (rep1)> -j <BAM file (rep2)> [OPTIONS]
+    pare -i <BAM file(s)> [OPTIONS]
 
 Example
 =======
 
     An usage example of PARESuite is shown below. As input, the method requires mapped reads in BAM format. An example dataset and expected results are available at http://servers.binf.ku.dk/pare/download/test_run/
 
-    pare -i data/h3k4me1_helas3_Rep1.bam -j data/h3k4me1_helas3_Rep2.bam -o results -m hg19 -p &> pare.log
+    pare -i data/h3k4me1_helas3_Rep1.bam,data/h3k4me1_helas3_Rep2.bam -o results -m hg19 -p &> pare.log
 
 Input
 =====

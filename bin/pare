@@ -30,12 +30,12 @@ BLOCK_BKG_PERCENTILE="0.0005"
 usage() {
 	echo Program: "pare (Predict Active Regulatory Elements using histone marks)"
 	echo Author: BRIC, University of Copenhagen, Denmark
-	echo Version: 0.05
+	echo Version: 0.06
 	echo Contact: pundhir@binf.ku.dk
-	echo "Usage: pare -i <file> -j <file> [OPTIONS]"
+	echo "Usage: pare -i <file(s)> [OPTIONS]"
 	echo "Options:"
-	echo " -i <file>   [mapped reads in BAM format (replicate 1)]"
-	echo " -j <file>   [mapped reads in BAM format (replicate 2)]"
+	echo " -i <file>   [mapped reads in BAM format]"
+    echo "             [if multiple, please separate them by a comma]"
     echo "[OPTIONS]"
     echo " -k <file>   [optimal histone peaks region in BED format]"
     echo "             [-k will get precendence over -c parameter]"
@@ -56,10 +56,9 @@ usage() {
 }
 
 #### parse options ####
-while getopts i:j:c:k:o:m:pn:v:t:h ARG; do
+while getopts i:c:k:o:m:pn:v:t:h ARG; do
 	case "$ARG" in
-		i) REP1=$OPTARG;;
-		j) REP2=$OPTARG;;
+		i) BAMFILEs=$OPTARG;;
 		c) CONTROL=$OPTARG;;
         k) PEAKREGION=$OPTARG;;
         o) OUTDIR=$OPTARG;;
@@ -79,7 +78,7 @@ fi
 
 echo
 ## usage, if necessary file and directories are given/exist
-if [ ! -f "$REP1" -o ! -f "$REP2" ]; then
+if [ -z "$BAMFILEs" ]; then
     echo
     echo "Error: one or more required paramter values not provided"
     echo
@@ -142,15 +141,18 @@ else
     BLOCK_BKG_PERCENTILE="0.005"
 fi
 
+## reformat input BAM files into macs2 input format
+BAMFILEx=$(echo $BAMFILEs | perl -ane '$_=~s/\,/ /g; print $_;')
+
 ## compute region peak file
 if [ -z "$PEAKREGION" -a -s "$OUTDIR/macs2/MACS2_peaks20K.narrowPeak" ]; then
     PEAKREGION="$OUTDIR/macs2/MACS2_peaks20K.narrowPeak"
 elif [ -z "$PEAKREGION" ]; then
     if [ ! -z "$GENOME_MACS2" ]; then
-        macs2 predictd -i $REP1 $REP2 -g $GENOME_MACS2 --outdir $OUTDIR/macs2/ 2>$OUTDIR/macs2/predictd.rep0 &
+        macs2 predictd -i $BAMFILEx -g $GENOME_MACS2 --outdir $OUTDIR/macs2/ 2>$OUTDIR/macs2/predictd.rep0 &
 
     else
-        macs2 predictd -i $REP1 $REP2 --outdir $OUTDIR/macs2/ 2>$OUTDIR/macs2/predictd.rep0 &
+        macs2 predictd -i $BAMFILEx --outdir $OUTDIR/macs2/ 2>$OUTDIR/macs2/predictd.rep0 &
 
     fi
     wait
@@ -161,29 +163,29 @@ elif [ -z "$PEAKREGION" ]; then
     if [ ! -z "$GENOME_MACS2" ]; then
         if [ -f "$CONTROL" ]; then
             if echo $(macs2 --version 2>&1) | grep -qE "2\.0"; then
-                macs2 callpeak -t $REP1 $REP2 -c $CONTROL --outdir $OUTDIR/macs2 -n MACS2 -g $GENOME_MACS2 -p 1e-3 --nomodel --shiftsize $EXTEND 2>$OUTDIR/macs2/MACS2.log
+                macs2 callpeak -t $BAMFILEx -c $CONTROL --outdir $OUTDIR/macs2 -n MACS2 -g $GENOME_MACS2 -p 1e-3 --nomodel --shiftsize $EXTEND 2>$OUTDIR/macs2/MACS2.log
             else
-                macs2 callpeak -t $REP1 $REP2 -c $CONTROL --outdir $OUTDIR/macs2 -n MACS2 -g $GENOME_MACS2 -p 1e-3 --nomodel --extsize $EXTEND 2>$OUTDIR/macs2/MACS2.log
+                macs2 callpeak -t $BAMFILEx -c $CONTROL --outdir $OUTDIR/macs2 -n MACS2 -g $GENOME_MACS2 -p 1e-3 --nomodel --extsize $EXTEND 2>$OUTDIR/macs2/MACS2.log
             fi
         else
             if echo $(macs2 --version 2>&1) | grep -qE "2\.0"; then
-                macs2 callpeak -t $REP1 $REP2 --outdir $OUTDIR/macs2 -n MACS2 -g $GENOME_MACS2 -p 1e-3 --nomodel --shiftsize $EXTEND 2>$OUTDIR/macs2/MACS2.log
+                macs2 callpeak -t $BAMFILEx --outdir $OUTDIR/macs2 -n MACS2 -g $GENOME_MACS2 -p 1e-3 --nomodel --shiftsize $EXTEND 2>$OUTDIR/macs2/MACS2.log
             else
-                macs2 callpeak -t $REP1 $REP2 --outdir $OUTDIR/macs2 -n MACS2 -g $GENOME_MACS2 -p 1e-3 --nomodel --extsize $EXTEND 2>$OUTDIR/macs2/MACS2.log
+                macs2 callpeak -t $BAMFILEx --outdir $OUTDIR/macs2 -n MACS2 -g $GENOME_MACS2 -p 1e-3 --nomodel --extsize $EXTEND 2>$OUTDIR/macs2/MACS2.log
             fi
         fi
     else
         if [ -f "$CONTROL" ]; then
             if echo $(macs2 --version 2>&1) | grep -qE "2\.0"; then
-                macs2 callpeak -t $REP1 $REP2 -c $CONTROL --outdir $OUTDIR/macs2 -n MACS2 -p 1e-3 --nomodel --shiftsize $EXTEND 2>$OUTDIR/macs2/MACS2.log
+                macs2 callpeak -t $BAMFILEx -c $CONTROL --outdir $OUTDIR/macs2 -n MACS2 -p 1e-3 --nomodel --shiftsize $EXTEND 2>$OUTDIR/macs2/MACS2.log
             else
-                macs2 callpeak -t $REP1 $REP2 -c $CONTROL --outdir $OUTDIR/macs2 -n MACS2 -p 1e-3 --nomodel --extsize $EXTEND 2>$OUTDIR/macs2/MACS2.log
+                macs2 callpeak -t $BAMFILEx -c $CONTROL --outdir $OUTDIR/macs2 -n MACS2 -p 1e-3 --nomodel --extsize $EXTEND 2>$OUTDIR/macs2/MACS2.log
             fi
         else
             if echo $(macs2 --version 2>&1) | grep -qE "2\.0"; then
-                macs2 callpeak -t $REP1 $REP2 --outdir $OUTDIR/macs2 -n MACS2 -p 1e-3 --nomodel --shiftsize $EXTEND 2>$OUTDIR/macs2/MACS2.log
+                macs2 callpeak -t $BAMFILEx --outdir $OUTDIR/macs2 -n MACS2 -p 1e-3 --nomodel --shiftsize $EXTEND 2>$OUTDIR/macs2/MACS2.log
             else
-                macs2 callpeak -t $REP1 $REP2 --outdir $OUTDIR/macs2 -n MACS2 -p 1e-3 --nomodel --extsize $EXTEND 2>$OUTDIR/macs2/MACS2.log
+                macs2 callpeak -t $BAMFILEx --outdir $OUTDIR/macs2 -n MACS2 -p 1e-3 --nomodel --extsize $EXTEND 2>$OUTDIR/macs2/MACS2.log
             fi
         fi
     fi
@@ -194,13 +196,13 @@ fi
 
 ## run PARE
 if [ -z "$PARALLEL" ]; then
-    $PAREPATH/bin/nfrAnaAll -i $REP1 -j $REP2 -k $PEAKREGION -o $OUTDIR/analysis -m $GENOME -n $MINNFRLENGTH -v $MAXNFRLENGTH -t $NFR_THRESHOLD -d -z $BLOCK_BKG_PERCENTILE
+    $PAREPATH/bin/nfrAnaAll -i $BAMFILEs -k $PEAKREGION -o $OUTDIR/analysis -m $GENOME -n $MINNFRLENGTH -v $MAXNFRLENGTH -t $NFR_THRESHOLD -d -z $BLOCK_BKG_PERCENTILE
 else
-    $PAREPATH/bin/nfrAnaAll -i $REP1 -j $REP2 -k $PEAKREGION -o $OUTDIR/analysis -m $GENOME -n $MINNFRLENGTH -v $MAXNFRLENGTH -t $NFR_THRESHOLD -d -p -z $BLOCK_BKG_PERCENTILE
+    $PAREPATH/bin/nfrAnaAll -i $BAMFILEs -k $PEAKREGION -o $OUTDIR/analysis -m $GENOME -n $MINNFRLENGTH -v $MAXNFRLENGTH -t $NFR_THRESHOLD -d -p -z $BLOCK_BKG_PERCENTILE
 fi
 
 ## prepare final output files
-ID=`echo $REP1 | perl -ane '$_=~s/^.*\///g; $_=~s/Rep.*$//g; $_=~s/\_$//g; print $_;'`;
+ID=`echo $BAMFILEx | perl -ane '$_=~s/^.*\///g; $_=~s/Rep.*$//g; $_=~s/\_$//g; print $_;'`;
 
 #perl -e 'print "#chr\tstart\tend\tid\tnfrDip\tstrand\tup-block\tdown-block\tTPM (up-block)\tlength (up-block)\tTPM (down-block)\tlength (down-block)\tTPM (NFR)\tlength (NFR)\tp-value\tFDR\tOrientation\n";' > $OUTDIR/RESULTS.TXT
 #cat $OUTDIR/analysis/h3k4me1_helas3.All.nfr.sig >> $OUTDIR/RESULTS.TXT

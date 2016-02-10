@@ -8,7 +8,30 @@ use Tie::IxHash;
 
 our $VERSION = 1.0;
 our @ISA = qw(Exporter);
-our @EXPORT = qw(organizeOverlapCoor returnOverlapCoor checkOverlap compReadCount compOverlap readbgInfo compNuclFreq reverse_complement mergeBG parseBED openFile grepBG uniqCoor addRead removeBlock addBlock mapBlock uniqElements reformatbId compbgRelExp printbgInfo checkMapFormat parsePvclust binarySearchCoor checkArrayOverlap commonHashKeys parseDBAoutput checkRevCompExp combinePDF combineMultiPDF coor2annotation);
+our @EXPORT = qw(returnOverlapCoorArray organizeOverlapCoor returnOverlapCoor checkOverlap compReadCount compOverlap readbgInfo compNuclFreq reverse_complement mergeBG parseBED openFile grepBG uniqCoor addRead removeBlock addBlock mapBlock uniqElements reformatbId compbgRelExp printbgInfo checkMapFormat parsePvclust binarySearchCoor checkArrayOverlap commonHashKeys parseDBAoutput checkRevCompExp combinePDF combineMultiPDF coor2annotation);
+
+## return overlapping coordinates between two coordinates
+sub returnOverlapCoorArray {
+	my ($coor, $mode) = @_;
+	return 0 if(!defined($coor));
+    my @chr=(); my @start=(); my @end=(); 
+    foreach(@{$coor}) {
+        #print "$_\n";
+        my @F=split(/[\:\-]+/,$_);
+        push(@chr, $F[0]);
+        push(@start, $F[1]);
+        push(@end, $F[2]);
+    }
+
+    my @sorted_start=sort { $a <=> $b } @start;
+    my @sorted_end=sort { $a <=> $b } @end;
+    if($mode=~/intersect/) {
+        return "$chr[0]:$sorted_start[scalar(@sorted_start)-1]-$sorted_end[0]";
+    }
+    else {
+        return "$chr[0]:$sorted_start[0]-$sorted_end[scalar(@sorted_start)-1]";
+    }
+}
 
 ## organize overlapping coordinates into three (middle overlapping and flanking coordinates)
 sub organizeOverlapCoor {

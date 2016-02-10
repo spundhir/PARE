@@ -22,8 +22,6 @@ copyright_info
 OUTDIR="nfr_random";
 GENOME="mm9"
 SHUFFLECOUNT=100000
-EXTEND_REP1=0
-EXTEND_REP2=0
 
 #### usage ####
 usage() {
@@ -31,10 +29,10 @@ usage() {
 	echo Author: BRIC, University of Copenhagen, Denmark
 	echo Version: 1.0
 	echo Contact: pundhir@binf.ku.dk
-	echo "Usage: randomNfrAna -i <file> -j <file> -k <file> -l <file> [OPTIONS]"
+	echo "Usage: randomNfrAna -i <file> -k <file> -l <file> [OPTIONS]"
 	echo "Options:"
-	echo " -i <file>   [mapped reads in BAM format (replicate 1)]"
-	echo " -j <file>   [mapped reads in BAM format (replicate 2)]"
+	echo " -i <file>   [mapped read file(s) in BAM format]"
+    echo "             [if multiple, please separate them by a comma]"
 	echo " -k <file>   [optimal histone peaks region (regionPeak file)]"
 	echo " -l <file>   [nfr file created by nfrAna script]"
     echo "[OPTIONS]"
@@ -43,18 +41,17 @@ usage() {
     echo " -m <string> [genome (default: mm9)]"
     echo " -f <file>   [random NFRs should fall within these regions]"
     echo " -n <int>    [total number of random NFRs (default: 100000)]"
-    echo " -c <int>    [extend 3' end of reads by input number of bases (replicate 1)]"
-    echo " -d <int>    [extend 3' end of reads by input number of bases (replicate 2)]"
+    echo " -c <int>    [extend 3' end of reads by input number of bases]"
+    echo "             [if multiple, please separate them by a comma]"
 	echo " -h          [help]"
 	echo
 	exit 0
 }
 
 #### parse options ####
-while getopts i:j:k:l:o:pm:f:n:c:d:h ARG; do
+while getopts i:k:l:o:pm:f:n:c:h ARG; do
 	case "$ARG" in
-		i) REP1=$OPTARG;;
-		j) REP2=$OPTARG;;
+		i) BAMFILEs=$OPTARG;;
 		k) PEAKREGION=$OPTARG;;
 		l) NFRREGION=$OPTARG;;
         o) OUTDIR=$OPTARG;;
@@ -62,14 +59,13 @@ while getopts i:j:k:l:o:pm:f:n:c:d:h ARG; do
         m) GENOME=$OPTARG;;
         f) INCLREGION=$OPTARG;;
         n) SHUFFLECOUNT=$OPTARG;;
-        c) EXTEND_REP1=$OPTARG;;
-        d) EXTEND_REP2=$OPTARG;;
+        c) EXTENDs=$OPTARG;;
 		h) HELP=1;;
 	esac
 done
 
 ## usage, if necessary file and directories are given/exist
-if [ ! -f "$REP1" -o ! -f "$REP2" -o ! -f "$PEAKREGION" -o ! "$NFRREGION" -o "$HELP" ]; then
+if [ -z "$BAMFILEs" -o ! -f "$PEAKREGION" -o ! "$NFRREGION" -o "$HELP" ]; then
 	usage
 fi
 
@@ -85,13 +81,29 @@ function wait_for_jobs_to_finish {
 }
 ###############
 
+echo -n "Determine number of input bam files (`date`).. "
+oIFS=$IFS
+IFS=","
+BAMFILEa=($BAMFILEs)
+IFS=$oIFS
+if [ -z "$EXTENDs" ]; then
+    for(( i=0; i<${#BAMFILEa[@]}; i++ )); do
+        EXTENDs="$EXTENDs,0"
+    done
+    EXTENDs=$(echo $EXTENDs | perl -ane '$_=~s/^\,//g; print $_;')
+fi
+IFS=","
+BAMFILEa=($BAMFILEs)
+EXTENDa=($EXTENDs)
+IFS=$oIFS
+echo "done"
+
 echo -n "Create directory structure.. "
 if [ ! -d "$OUTDIR" ]; then
     mkdir $OUTDIR
     mkdir $OUTDIR/parallel
 fi
 echo "done"
-
 
 echo -n "Populating files based on input genome ($GENOME)... "
 GENOME_FILE=$(initialize_genome -i $PAREPATH/data/annotations/GENOME_FILE -g $GENOME)
@@ -107,38 +119,43 @@ fi
 echo done
 
 ## print header with choosen parameters
-echo "#input BAM file (Rep1): $REP1
-#input BAM file (Rep2): $REP2
+echo "#input BAM file(s): $BAMFILEs
 #input histone peak region file: $PEAKREGION
 #input NFR region file: $NFRREGION
 #output directory: $OUTDIR
 #reference genome: $GENOME
 #regions within which to include random regions: $INCLREGION
-#extend 3' end of reads (Rep1): $EXTEND_REP1
-#extend 3' end of reads (Rep2): $EXTEND_REP2" > $OUTDIR/PARAMETERS
+#extend 3' end of reads: $EXTENDs" > $OUTDIR/PARAMETERS
 
 ## index bam files and estimate size factors
 echo -n "Create index of input BAM files.. "
-if [ ! -e "$REP1.bai" ]; then
-    samtools index $REP1
-fi
-if [ ! -e "$REP2.bai" ]; then
-    samtools index $REP2
-fi
+for(( i=0; i<${#BAMFILEa[@]}; i++ )); do
+    if [ ! -e "${BAMFILEa[$i]}.bai" ]; then
+        samtools index ${BAMFILEa[$i]}
+    fi
+done
 echo "done"
 
 echo -n "Compute size factor for each replicate.. "
-if [ ! -e "$OUTDIR/sizeFactorCount" ]; then
-    estimateSizeFactor.pl -o b -b $REP1,$REP2 -x $PEAKREGION -r $OUTDIR/sizeFactorCount -p $PAREPATH/share/R/
-fi
+if [ ${#BAMFILEa[@]} -gt 1 ]; then
+    if [ ! -e "$OUTDIR/sizeFactorCount" ]; then
+        estimateSizeFactor.pl -o b -b $BAMFILEs -x $PEAKREGION -r $OUTDIR/sizeFactorCount -p $PAREPATH/share/R/
+    fi
 
-if [ ! -e "$OUTDIR/sizeFactor" ]; then
-    estimateSizeFactor.pl -o c -r $OUTDIR/sizeFactorCount > $OUTDIR/sizeFactor -p $PAREPATH/share/R/
+    if [ ! -e "$OUTDIR/sizeFactor" ]; then
+        estimateSizeFactor.pl -o c -r $OUTDIR/sizeFactorCount > $OUTDIR/sizeFactor -p $PAREPATH/share/R/
+    fi
+else
+    touch $OUTDIR/sizeFactorCount
+    perl -e 'print "'${BAMFILEa[0]}'\t1\n";' > $OUTDIR/sizeFactor
 fi
 echo "done"
 
-SIZEFACTOR_REP1=`head -n 1 $OUTDIR/sizeFactor | cut -f 2`;
-SIZEFACTOR_REP2=`head -n 2 $OUTDIR/sizeFactor | tail -n 1 | cut -f 2`;
+echo -n "Retrieve size factors to normalize the expression of reads... "
+SIZEFACTORa=($(cut -f 2 $OUTDIR/sizeFactor));
+SIZEFACTORs=$(printf ",%s" "${SIZEFACTORa[@]}");
+SIZEFACTORs=$(echo $SIZEFACTORs | perl -ane '$_=~s/^\,//g; print $_;')
+echo "done"
 
 ## remove shuffled NFR file, if exists
 if [ -f "$OUTDIR/RANDOM_NFRREGION.BED" ]; then
@@ -210,12 +227,12 @@ if [ ! -z "$PARALLEL" ]; then
     indexBed.sh -i $OUTDIR/RANDOM_NFRREGION.BED -o $OUTDIR/parallel -x x
 
     for file in `ls $OUTDIR/parallel/x*`; do
-        bed2nfrdip -i $file -j $REP1,$REP2 -k $SIZEFACTOR_REP1,$SIZEFACTOR_REP2 -o $file.score -e $EXTEND_REP1,$EXTEND_REP2 -g $GENOME &
+        bed2nfrdip -i $file -j $BAMFILEs -k $SIZEFACTORs -o $file.score -e $EXTENDs -g $GENOME &
     done
     wait
     intersectBed -a <(cat $OUTDIR/parallel/x*score) -b $NFRREGION -v > $OUTDIR/RANDOM_NFRREGION.BED.SCORE
 else
-    bed2nfrdip -i $OUTDIR/RANDOM_NFRREGION.BED -j $REP1,$REP2 -k $SIZEFACTOR_REP1,$SIZEFACTOR_REP2 -o $OUTDIR/RANDOM_NFRREGION.BED.TMP -e $EXTEND_REP1,$EXTEND_REP2 -g $GENOME &
+    bed2nfrdip -i $OUTDIR/RANDOM_NFRREGION.BED -j $BAMFILEs -k $SIZEFACTORs -o $OUTDIR/RANDOM_NFRREGION.BED.TMP -e $EXTENDs -g $GENOME &
     intersectBed -a $OUTDIR/RANDOM_NFRREGION.BED.TMP -b $NFRREGION -v > $OUTDIR/RANDOM_NFRREGION.BED.SCORE
     rm $OUTDIR/RANDOM_NFRREGION.BED.TMP
 fi

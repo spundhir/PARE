@@ -164,7 +164,8 @@ void read_bed_file(char *file)
 					e = fscanf(f, "%s %d %d %s %lf %s %d %d %s %d %s %s", chrom, &start, &end, id, &height, strand, &tmp1, &tmp2, str1, &tmp3, str2, str3);
 					//e = fscanf(f, "%s %d %d %s %lf %s", chrom, &start, &end, id, &height, strand);
 					//printf("%s\t%d\t%d\t%s\t%lf\t%s\t%d\t%d\t%s\t%d\t%s\t%s\n", chrom, start, end, id, height, strand, tmp1, tmp2, str1, tmp3, str2, str3);
-					if(isdigit(start) == 1 || isdigit(end) == 1 || strand == NULL){printf("wrong file format\n"); printUsage(); exit(0);}
+					//if(isdigit(start) == 1 || isdigit(end) == 1 || strand == NULL){printf("wrong file format\n"); printUsage(); exit(0);}
+					if(start < 0 || end < 0 || end < start){printf("wrong file format at %d %d\n", start, end); printUsage(); exit(0);}
 				}
 				else if(type == 2){
 					int tmp1, tmp2, tmp3, tmp4, tmp5, tmp6, tmp7, tmp8, tmp9;
@@ -192,7 +193,8 @@ void read_bed_file(char *file)
 					if(height != -1){height = height / freq;}
 					else{height = 1 / freq;}
 
-					if(isdigit(start) == 1 || isdigit(end) == 1 || strand == NULL){printf("wrong file format\n"); printUsage(); exit(0);}
+					//if(isdigit(start) == 1 || isdigit(end) == 1 || strand == NULL){printf("wrong file format\n"); printUsage(); exit(0);}
+					if(start < 0 || end < 0 || end < start){printf("wrong file format at %d %d\n", start, end); printUsage(); exit(0);}
 				}
 
 				if(height >= tagFilter && (chr==NULL || strcmp(chrom, chr)==0)){
