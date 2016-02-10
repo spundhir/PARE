@@ -34,7 +34,7 @@ usage() {
 	echo Contact: pundhir@binf.ku.dk
 	echo "Usage: pare -i <file(s)> [OPTIONS]"
 	echo "Options:"
-	echo " -i <file>   [mapped reads in BAM format]"
+	echo " -i <file>   [mapped read file(s) in BAM format]"
     echo "             [if multiple, please separate them by a comma]"
     echo "[OPTIONS]"
     echo " -k <file>   [optimal histone peaks region in BED format]"
