@@ -124,7 +124,7 @@ Example
 Input
 =====
 
-    As input, the method requires mapped reads in BAM format. The name of the input file(s) should be formatted as
+    As input, the method requires one or more mapped read files in BAM format correspondng to each replicate of H3K4me1 (enhancer prediction) or H3K4me3 (promoter prediction) ChIP-seq experiment. The name of the input file(s) should be formatted as
 
     Input file name (replicate 1): <unique id><Rep1>.bam (example: h3k4me1_Rep1.bam)
 
@@ -160,6 +160,7 @@ License
 =======
 
     PARE: a computational method to Predict Active Regulatory Elements using histone marks
+
     Copyright (C) 2015  Sachin Pundhir (pundhir@binf.ku.dk)
 
     This program is free software: you can redistribute it and/or modify
