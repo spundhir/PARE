@@ -32,7 +32,7 @@ EOF
 }
 
 check_r_module() {
-    if [ $($PAREPATH/share/R/checkRModule.R -i $1) == "FALSE" ]; then
+    if [ "$($PAREPATH/share/R/checkRModule.R -i $1)" == "FALSE" ]; then
         echo "Error: R module $1 is missing."
         echo "please install it using install.packages() or biocLite() for bioconductor packages"
         echo
@@ -41,7 +41,7 @@ check_r_module() {
 }
 
 check_binary() {
-    if [ $(which $1 &>/dev/null; echo $?) -eq 1 ]; then
+    if [ "$(which $1 &>/dev/null; echo $?)" -eq 1 ]; then
         echo "Error: $1 is missing."
         echo "please install it before using PARESuite"
         echo
