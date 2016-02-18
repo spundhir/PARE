@@ -42,7 +42,7 @@ usage() {
 	echo " -c <file>   [mapped reads in BAM format (control)]"
     echo " -o <dir>    [output directory to store results (default: results)"
     echo " -m <string> [genome (default: mm9)]"
-    echo " -p          [run in parallel]"
+    echo " -p <int>    [number of processors to use (run in parallel)]"
     echo " -n <int>    [minimum length of nucleosome free region (default: 20)]"
     echo " -v <int>    [maximum length of nucleosome free region (default: 1000)]"
     echo " -t <float>  [FDR at which to consider a NFR as significant (default: 0.05)]"
@@ -56,14 +56,14 @@ usage() {
 }
 
 #### parse options ####
-while getopts i:c:k:o:m:pn:v:t:h ARG; do
+while getopts i:c:k:o:m:p:n:v:t:h ARG; do
 	case "$ARG" in
 		i) BAMFILEs=$OPTARG;;
 		c) CONTROL=$OPTARG;;
         k) PEAKREGION=$OPTARG;;
         o) OUTDIR=$OPTARG;;
         m) GENOME=$OPTARG;;
-        p) PARALLEL=1;;
+        p) PARALLEL=$OPTARG;;
         n) MINNFRLENGTH=$OPTARG;;
         v) MAXNFRLENGTH=$OPTARG;;
         t) NFR_THRESHOLD=$OPTARG;;
@@ -198,7 +198,7 @@ fi
 if [ -z "$PARALLEL" ]; then
     $PAREPATH/bin/nfrAnaAll -i $BAMFILEs -k $PEAKREGION -o $OUTDIR/analysis -m $GENOME -n $MINNFRLENGTH -v $MAXNFRLENGTH -t $NFR_THRESHOLD -d -z $BLOCK_BKG_PERCENTILE
 else
-    $PAREPATH/bin/nfrAnaAll -i $BAMFILEs -k $PEAKREGION -o $OUTDIR/analysis -m $GENOME -n $MINNFRLENGTH -v $MAXNFRLENGTH -t $NFR_THRESHOLD -d -p -z $BLOCK_BKG_PERCENTILE
+    $PAREPATH/bin/nfrAnaAll -i $BAMFILEs -k $PEAKREGION -o $OUTDIR/analysis -m $GENOME -n $MINNFRLENGTH -v $MAXNFRLENGTH -t $NFR_THRESHOLD -d -p $PARALLEL -z $BLOCK_BKG_PERCENTILE
 fi
 
 ## check, if everything worked properly

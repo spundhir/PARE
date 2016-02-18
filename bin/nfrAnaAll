@@ -50,7 +50,7 @@ usage() {
     echo " -f <file>   [optimal TF (cebpa) peaks summit (summit file)]"
     echo "             [used to optimize -c and -e parameters]"
     echo " -m <string> [genome (default: mm9)]"
-    echo " -p          [run in parallel]"
+    echo " -p <int>    [number of processors to use (run in parallel)]"
     echo " -d          [shift 3' of reads to accomodate for fragment length]"
     echo " -c <int>    [minimum number of read in the block group (default: auto compute)]"
     echo " -e <int>    [minimum number of read in the block (default: auto compute)]"
@@ -68,7 +68,7 @@ usage() {
 }
 
 #### parse options ####
-while getopts i:k:o:r:f:m:pdc:e:x:s:g:n:v:t:u:z:h ARG; do
+while getopts i:k:o:r:f:m:p:dc:e:x:s:g:n:v:t:u:z:h ARG; do
 	case "$ARG" in
 		i) BAMFILEs=$OPTARG;;
 		k) PEAKREGION=$OPTARG;;
@@ -76,7 +76,7 @@ while getopts i:k:o:r:f:m:pdc:e:x:s:g:n:v:t:u:z:h ARG; do
         r) RANDOMDIR=$OPTARG;;
         f) TFSUMMIT=$OPTARG;;
         m) GENOME=$OPTARG;;
-        p) PARALLEL=1;;
+        p) PARALLEL=$OPTARG;;
         d) EXTEND=1;;
         c) MINCLUSTERHEIGHT=$OPTARG;;
         e) MINBLOCKHEIGHT=$OPTARG;;
@@ -376,7 +376,7 @@ else
 
     echo -n "Predict nucleosome free regions (NFR) (`date`).. "
     for(( i=0; i<${#BEDFILEa[@]}; i++ )); do
-        ls $OUTDIR/parallel/rep$i/x* | parallel -j 50 findNFRAll.pl -s {} -b ${BAMFILEa[$i]} -o $OUTDIR/rep$i -z ${SIZEFACTORa[$i]} -f {/.} -c $MINCLUSTERHEIGHT -k $MINBLOCKHEIGHT -x $DISTANCE -l $SCALE -g $BLOCKHEIGHT -n $MINNFRLENGTH -v $MAXNFRLENGTH -e ${EXTENDa[$i]} -y $GENOME
+        ls $OUTDIR/parallel/rep$i/x* | parallel -j $PARALLEL findNFRAll.pl -s {} -b ${BAMFILEa[$i]} -o $OUTDIR/rep$i -z ${SIZEFACTORa[$i]} -f {/.} -c $MINCLUSTERHEIGHT -k $MINBLOCKHEIGHT -x $DISTANCE -l $SCALE -g $BLOCKHEIGHT -n $MINNFRLENGTH -v $MAXNFRLENGTH -e ${EXTENDa[$i]} -y $GENOME
     done
     echo "done"
 
@@ -391,8 +391,8 @@ else
         nfrFILEs=$(echo $nfrFILEs | perl -ane '$_=~s/^\,//g; print $_;')
         echo $nfrFILEs
         echo $ID_xfile
-    done | parallel -j 50 -N 2 commonNFR.pl -i {1} -k $BAMFILEs -m $SIZEFACTORs -o $OUTDIR/common/ -g $MINNFRLENGTH -c $EXTENDs -y $GENOME -f {2}
-    #| parallel -j 50 -n 2 --colsep ' ' echo commonNFR.pl -i {1} -k $BAMFILEs -m $SIZEFACTORs -o $OUTDIR/common/ -g $MINNFRLENGTH -c $EXTENDs -y $GENOME -f {2}
+    done | parallel -j $PARALLEL -N 2 commonNFR.pl -i {1} -k $BAMFILEs -m $SIZEFACTORs -o $OUTDIR/common/ -g $MINNFRLENGTH -c $EXTENDs -y $GENOME -f {2}
+    #| parallel -j $PARALLEL -n 2 --colsep ' ' echo commonNFR.pl -i {1} -k $BAMFILEs -m $SIZEFACTORs -o $OUTDIR/common/ -g $MINNFRLENGTH -c $EXTENDs -y $GENOME -f {2}
     echo "done"
 
     echo -n "Concatenate all result files into one file (`date`).. "
