@@ -5,7 +5,7 @@ README file for PARE (v0.06)
 
 Important Note
 ==============
-    PARE now supports one or more BAM files (replicates) as input. Previous versions of PARE (0.01 - 0.05) supports only two BAM files (replicates) as input.
+    PARE now supports one or more BAM files (replicates) as input. Previous versions of PARE (0.01 - 0.05) supports only two BAM files (replicates) as input. In technical terms, -j paramter is deprecated and -p parameter requires an argument now.
 
 Description
 ===========
@@ -119,7 +119,7 @@ Example
 
     An usage example of PARESuite is shown below. As input, the method requires mapped reads in BAM format. An example dataset and expected results are available at http://servers.binf.ku.dk/pare/download/test_run/
 
-    pare -i data/h3k4me1_helas3_Rep1.bam,data/h3k4me1_helas3_Rep2.bam -o results -m hg19 -p &> pare.log
+    pare -i data/h3k4me1_helas3_Rep1.bam,data/h3k4me1_helas3_Rep2.bam -o results -m hg19 -p 10 &> pare.log
 
 Input
 =====
