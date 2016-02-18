@@ -201,6 +201,14 @@ else
     $PAREPATH/bin/nfrAnaAll -i $BAMFILEs -k $PEAKREGION -o $OUTDIR/analysis -m $GENOME -n $MINNFRLENGTH -v $MAXNFRLENGTH -t $NFR_THRESHOLD -d -p -z $BLOCK_BKG_PERCENTILE
 fi
 
+## check, if everything worked properly
+if [ $? -eq 1 ]; then
+    echo
+    echo "Something didn't worked properly. Please check the log files under analysis/logs";
+    echo
+    exit 1
+fi
+
 ## prepare final output files
 ID=`echo $BAMFILEx | perl -ane '$_=~s/^.*\///g; $_=~s/Rep.*$//g; $_=~s/\_$//g; print $_;'`;
 

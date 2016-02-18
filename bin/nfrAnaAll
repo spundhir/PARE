@@ -241,6 +241,14 @@ elif [ -s "$OUTDIR/optimizeThreshold/blockbuster_threshold.txt" ]; then
     echo "done"
 fi
 
+## check, if everything worked properly
+if [ -z "$HEIGHT_THRESHOLD" ]; then
+    echo
+    echo "Error: Some thing didn't worked properly. Please check the log files under analysis/logs/blockbuster_threshold_nfr.log";
+    echo
+    exit 1
+fi
+
 ## print chosen parameters to file
 DATE=`date`
 echo "#timestamp: $DATE
@@ -322,13 +330,13 @@ for(( i=0; i<${#BEDFILEa[@]}; i++ )); do
     if [ ! -s "${BEDFILEa[$i]}" ]; then
         echo
         echo "Error: bed file ${BEDFILEa[$i]} not created properly"
-        exit
+        exit 1
     else
         NCOL=$(awk -F'\t' '{print NF;}' ${BEDFILEa[$i]} | uniq | wc -l)
         if [ "$NCOL" -gt 1 ]; then
             echo
             echo "Error: bed file ${BEDFILEa[$i]} not created properly"
-            exit
+            exit 1
         fi
     fi
 done
@@ -391,10 +399,18 @@ else
     ID=`echo $BAMFILEs | perl -ane '$_=~s/^.*\///g; $_=~s/Rep.*$//g; $_=~s/\_$//g; print $_;'`;
 
     zless $OUTDIR/common/$ID.All.nfrx* | sort -k 1,1 -k 2n,2 -k 3n,3 > $OUTDIR/$ID.All.nfr
-
-    nfr2ucsc.pl -i $OUTDIR/$ID.All.nfr > $OUTDIR/$ID.All.nfr.ucsc
     echo "done"
 fi
+
+echo -n "Create UCSC browser file for all predicted NFRs (`date`).. "
+if [ ! -s "$OUTDIR/$ID.All.nfr" ]; then
+    echo
+    echo "Error: file $OUTDIR/$ID.All.nfr not created properly"
+    exit 1
+fi
+
+nfr2ucsc.pl -i $OUTDIR/$ID.All.nfr > $OUTDIR/$ID.All.nfr.ucsc
+echo "done"
 
 ## nfr analysis for randomly distributed nfr regions (associate p values)
 echo -n "Check if size factor files already exist (`date`).. "

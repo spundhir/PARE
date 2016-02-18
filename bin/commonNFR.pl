@@ -115,6 +115,10 @@ if(!defined($extends)) {
 $nfrFiles=~s/\,/ /g;
 chomp($nfrFiles);
 my @data=();
+if($SAMPLES==1) {
+    system("zless $nfrFiles >$outDir/$ID.All.nfr$fileSuffix");
+    exit(0);
+}
 #system("mergeBed.pl -i $nfrFiles | cut -f 1-3 > $outDir/$ID.Common$fileSuffix");
 system("multiIntersectBed -i $nfrFiles | perl -ane 'if(\$F[3]=='$SAMPLES') { print \$_; }' | cut -f 1-3 > $outDir/$ID.Common$fileSuffix");
 my %info=();
