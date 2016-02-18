@@ -5,7 +5,7 @@ README file for PARE (v0.06)
 
 Important Note
 ==============
-    PARE now supports one or more BAM files (replicates) as input. Previous versions of PARE (0.01 - 0.05) supports only two BAM files (replicates) as input. In technical terms, -j paramter is deprecated and -p parameter requires an argument now.
+    PARE now supports one or more BAM files (replicates) as input. Previous versions of PARE (0.01 - 0.05) supports only two BAM files (replicates) as input. In technical terms, -j parameter is deprecated and -p parameter requires an argument now.
 
 Description
 ===========
