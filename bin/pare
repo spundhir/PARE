@@ -141,6 +141,22 @@ else
     BLOCK_BKG_PERCENTILE="0.005"
 fi
 
+echo -n "Initialize input bam files (`date`).. "
+## initialize input BAM files
+oIFS=$IFS
+IFS=","
+BAMFILEa=($BAMFILEs)
+IFS=$oIFS
+echo "done"
+
+BAMFILEs=""
+for(( i=0; i<${#BAMFILEa[@]}; i++ )); do
+    scp ${BAMFILEa[$i]} $OUTDIR/macs2/histone_Rep$i.bam
+    BAMFILEs="$BAMFILEs,$OUTDIR/macs2/histone_Rep$i.bam"
+done
+BAMFILEs=$(echo $BAMFILEs | perl -ane '$_=~s/^\,//g; print $_;')
+echo "done"
+
 ## reformat input BAM files into macs2 input format
 BAMFILEx=$(echo $BAMFILEs | perl -ane '$_=~s/\,/ /g; print $_;')
 
