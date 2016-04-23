@@ -19,6 +19,11 @@ Version
 =======
     0.06
 
+Citation
+========
+
+Please cite Pundhir et al. (2016) Peak-valley-peak pattern of histone modifications delineates active regulatory elements and their directionality. Nucleic Acids Res. [PMID: 27095194].
+
 Programs and datasets
 =====================
     Generally, the user would be interested in following two scripts:
