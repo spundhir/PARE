@@ -61,4 +61,24 @@ for BINARY in gcc macs2 samtools bedtools featureCounts bedGraphToBigWig; do
     check_binary $BINARY
 done
 
+## check bedtools version
+VERSION=$(bedtools --version | perl -ane '@t=split(/\./,$F[1]); if($t[1]<23) { print "0"; } else { print "1"; }');
+
+if [ "$VERSION" == 0 ]; then
+    echo "Error: PARE require bedtools v2.23.0 or greater"
+    echo "Download https://github.com/arq5x/bedtools2/releases/download/v2.23.0/bedtools-2.23.0.tar.gz"
+    echo
+    exit 1
+fi
+
+## check samtools version
+VERSION=$(samtools --version | head -n 1 | perl -ane 'if($F[1]<1.2) { print "0"; } else { print "1"; }');
+
+if [ "$VERSION" == 0 ]; then
+    echo "Error: PARE require samtools v1.2 or greater"
+    echo "Download http://sourceforge.net/projects/samtools/files/samtools/1.2/samtools-1.2.tar.bz2/download"
+    echo
+    exit 1
+ fi
+
 exit 0
