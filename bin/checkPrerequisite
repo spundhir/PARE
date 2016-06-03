@@ -66,7 +66,7 @@ VERSION=$(bedtools --version | perl -ane '@t=split(/\./,$F[1]); if($t[1]<23) { p
 
 if [ "$VERSION" == 0 ]; then
     echo "Error: PARE require bedtools v2.23.0 or greater"
-    echo "Download https://github.com/arq5x/bedtools2/releases/download/v2.23.0/bedtools-2.23.0.tar.gz"
+    echo "Download from https://github.com/arq5x/bedtools2/releases/download/v2.23.0/bedtools-2.23.0.tar.gz"
     echo
     exit 1
 fi
@@ -76,7 +76,18 @@ VERSION=$(samtools --version | head -n 1 | perl -ane 'if($F[1]<1.2) { print "0";
 
 if [ "$VERSION" == 0 ]; then
     echo "Error: PARE require samtools v1.2 or greater"
-    echo "Download http://sourceforge.net/projects/samtools/files/samtools/1.2/samtools-1.2.tar.bz2/download"
+    echo "Download from http://sourceforge.net/projects/samtools/files/samtools/1.2/samtools-1.2.tar.bz2/download"
+    echo
+    exit 1
+ fi
+
+## check macs2 version
+#VERSION=$(echo 2.1.0 | perl -an -F'/\./' -e '$F[0]=~s/^.*\s+//g; if($F[0]>=2 && ($F[1]>0 || $F[2]>=10)) { print "1"; } else { print "0"; }');
+VERSION=$(echo $(macs2 --version 2>&1) | perl -an -F'/\./' -e '$F[0]=~s/^.*\s+//g; if($F[0]>=2 && ($F[1]>0 || $F[2]>=10)) { print "1"; } else { print "0"; }');
+
+if [ "$VERSION" == 0 ]; then
+    echo "Error: PARE require macs2 v2.0.10 or greater"
+    echo "Download from https://github.com/taoliu/MACS/"
     echo
     exit 1
  fi
