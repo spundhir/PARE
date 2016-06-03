@@ -29,6 +29,15 @@ EOF
         echo
         exit 1
     fi
+
+    perl -M$1 -e 1
+
+    if [ $? -ne 0 ]; then
+        echo "Error: perl module $1 is missing."
+        echo "please install it using perl -MCPAN -e shell"
+        echo
+        exit 1
+    fi
 }
 
 check_r_module() {
