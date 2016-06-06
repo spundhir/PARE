@@ -244,7 +244,7 @@ fi
 ## check, if everything worked properly
 if [ -z "$HEIGHT_THRESHOLD" ]; then
     echo
-    echo "Error: Some thing didn't worked properly. Please check the log files under analysis/logs/blockbuster_threshold_nfr.log";
+    echo "Error: Something didn't worked properly. Please check the log files under analysis/logs/blockbuster_threshold_nfr.log";
     echo
     exit 1
 fi
@@ -292,6 +292,14 @@ else
     perl -e 'print "'${BAMFILEa[0]}'\t1\n";' > $OUTDIR/sizeFactor
 fi
 echo "done"
+
+## check, if size factor is computed properly
+if [ ! -s $OUTDIR/sizeFactor ]; then
+    echo
+    echo "Error: Size factor is not computed properly. Please check the log files under analysis/logs/blockbuster_threshold_nfr.log";
+    echo
+    exit 1
+fi
 
 echo -n "Retrieve size factors to normalize the expression of reads... "
 SIZEFACTORa=($(cut -f 2 $OUTDIR/sizeFactor));
