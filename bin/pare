@@ -174,33 +174,40 @@ elif [ -z "$PEAKREGION" ]; then
     wait
 
     FRAGMENTLENGTH=$(cat $OUTDIR/macs2/predictd.rep0 | grep "predicted fragment length" | perl -ane 'print $F[scalar(@F)-2];')
-    EXTEND=`echo $FRAGMENTLENGTH | perl -ane 'printf("%0.0f", $_/2);'`
 
     if [ ! -z "$GENOME_MACS2" ]; then
         if [ -f "$CONTROL" ]; then
             if echo $(macs2 --version 2>&1) | grep -qE "2\.0"; then
+                EXTEND=`echo $FRAGMENTLENGTH | perl -ane 'printf("%0.0f", $_/2);'`
                 macs2 callpeak -t $BAMFILEx -c $CONTROL --outdir $OUTDIR/macs2 -n MACS2 -g $GENOME_MACS2 -p 1e-3 --nomodel --shiftsize $EXTEND 2>$OUTDIR/macs2/MACS2.log
             else
+                EXTEND=`echo $FRAGMENTLENGTH | perl -ane 'printf("%0.0f", $_);'`
                 macs2 callpeak -t $BAMFILEx -c $CONTROL --outdir $OUTDIR/macs2 -n MACS2 -g $GENOME_MACS2 -p 1e-3 --nomodel --extsize $EXTEND 2>$OUTDIR/macs2/MACS2.log
             fi
         else
             if echo $(macs2 --version 2>&1) | grep -qE "2\.0"; then
+                EXTEND=`echo $FRAGMENTLENGTH | perl -ane 'printf("%0.0f", $_/2);'`
                 macs2 callpeak -t $BAMFILEx --outdir $OUTDIR/macs2 -n MACS2 -g $GENOME_MACS2 -p 1e-3 --nomodel --shiftsize $EXTEND 2>$OUTDIR/macs2/MACS2.log
             else
+                EXTEND=`echo $FRAGMENTLENGTH | perl -ane 'printf("%0.0f", $_);'`
                 macs2 callpeak -t $BAMFILEx --outdir $OUTDIR/macs2 -n MACS2 -g $GENOME_MACS2 -p 1e-3 --nomodel --extsize $EXTEND 2>$OUTDIR/macs2/MACS2.log
             fi
         fi
     else
         if [ -f "$CONTROL" ]; then
             if echo $(macs2 --version 2>&1) | grep -qE "2\.0"; then
+                EXTEND=`echo $FRAGMENTLENGTH | perl -ane 'printf("%0.0f", $_/2);'`
                 macs2 callpeak -t $BAMFILEx -c $CONTROL --outdir $OUTDIR/macs2 -n MACS2 -p 1e-3 --nomodel --shiftsize $EXTEND 2>$OUTDIR/macs2/MACS2.log
             else
+                EXTEND=`echo $FRAGMENTLENGTH | perl -ane 'printf("%0.0f", $_);'`
                 macs2 callpeak -t $BAMFILEx -c $CONTROL --outdir $OUTDIR/macs2 -n MACS2 -p 1e-3 --nomodel --extsize $EXTEND 2>$OUTDIR/macs2/MACS2.log
             fi
         else
             if echo $(macs2 --version 2>&1) | grep -qE "2\.0"; then
+                EXTEND=`echo $FRAGMENTLENGTH | perl -ane 'printf("%0.0f", $_/2);'`
                 macs2 callpeak -t $BAMFILEx --outdir $OUTDIR/macs2 -n MACS2 -p 1e-3 --nomodel --shiftsize $EXTEND 2>$OUTDIR/macs2/MACS2.log
             else
+                EXTEND=`echo $FRAGMENTLENGTH | perl -ane 'printf("%0.0f", $_);'`
                 macs2 callpeak -t $BAMFILEx --outdir $OUTDIR/macs2 -n MACS2 -p 1e-3 --nomodel --extsize $EXTEND 2>$OUTDIR/macs2/MACS2.log
             fi
         fi
