@@ -80,7 +80,7 @@ echo
 ## usage, if necessary file and directories are given/exist
 if [ -z "$BAMFILEs" ]; then
     echo
-    echo "Error: one or more required paramter values not provided"
+    echo "Error: one or more required parameter values not provided"
     echo
 	usage
 fi
