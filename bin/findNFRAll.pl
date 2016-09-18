@@ -26,7 +26,7 @@ use perlModule;
 
 ###############################################################################
 ## parse input options
-use vars qw($interestRegionFile $bamFile $outDir $sizeFactor $option $minClusterHeight $minBlockHeight $distance $scale $blockHeight $noMergeOverlapBlocks $minNFRLength $maxNFRLength $extend $genome $fileSuffix $help);
+use vars qw($readFile $bamFile $outDir $sizeFactor $option $minClusterHeight $minBlockHeight $distance $scale $blockHeight $noMergeOverlapBlocks $minNFRLength $maxNFRLength $extend $genome $fileSuffix $help);
 $minClusterHeight=20;
 $minBlockHeight=20;
 $distance=70;
@@ -38,7 +38,7 @@ $extend=0;
 $genome="mm9";
 $fileSuffix="";
 
-GetOptions ("s=s"  => \$interestRegionFile,
+GetOptions ("s=s"  => \$readFile,
             "b=s"  => \$bamFile,
             "o=s"  => \$outDir,
             "z=s"  => \$sizeFactor,
@@ -57,7 +57,7 @@ GetOptions ("s=s"  => \$interestRegionFile,
             "help" => \$help,
             "h"    => \$help);
 
-usage() if($help || !$interestRegionFile || !$bamFile || !$outDir || !$sizeFactor);
+usage() if($help || !$readFile || !$bamFile || !$outDir || !$sizeFactor);
 
 ###############################################################################
 sub usage {
@@ -66,10 +66,8 @@ sub usage {
 	print STDERR "Version: 1.0\n";
 	print STDERR "Contact: pundhir\@binf.ku.dk\n";
 	print STDERR "Usage: findNFRAll.pl -s <file> -b <file> -o <dir> -z <float> [OPTIONS]\n";
-	print STDERR " -s <file>         [file(s) containing regions of interest]\n";
-    print STDERR "                   [if multiple, seperate them by a comma]\n";
-    print STDERR "                   [can be peak summit file(s) from macs2/IDR]\n";
-    print STDERR "                   [can be bed file for whole genome]\n";
+	print STDERR " -s <file>         [file containing reads corresponding to regions of interest]\n";
+    print STDERR "                   [can be reads in bed format for whole genome]\n";
 	print STDERR " -b <file>         [histone ChIP-seq file in BAM format]\n";
 	print STDERR " -o <dir>          [directory where output files will be kept]\n";
 	print STDERR " -z <float>        [size factor to normalize read expression]\n";
@@ -117,11 +115,11 @@ if(! -f $GENOME_FILE) {
 
 ## Step-1: define blocks and block groups
 if(!defined($option) || $option=~/[aA]+/) {
-    #print("blockbuster.x -minClusterHeight $minClusterHeight -minBlockHeight $minBlockHeight -distance $distance -scale $scale -blockHeight $blockHeight -print 2 $interestRegionFile | validateBlockbuster.pl -d $maxNFRLength | perl -ane 'if(\$_=~/^>/) { \$id=\"\$F[1]:\$F[2]-\$F[3]\"; } else { print \"\$F[0]\\t\$F[1]\\t\$F[2]\\t\$id\\t\$F[4]\\t\$F[5]\\n\"; }' > $outDir/$ID.tmp$fileSuffix\n"); exit;
-    system("blockbuster.x -minClusterHeight $minClusterHeight -minBlockHeight $minBlockHeight -distance $distance -scale $scale -blockHeight $blockHeight -print 2 $interestRegionFile | validateBlockbuster.pl -d $maxNFRLength | perl -ane 'if(\$_=~/^>/) { \$id=\"\$F[1]:\$F[2]-\$F[3]\"; } else { print \"\$F[0]\\t\$F[1]\\t\$F[2]\\t\$id\\t\$F[4]\\t\$F[5]\\n\"; }' > $outDir/$ID.tmp$fileSuffix");
+    #print("blockbuster.x -minClusterHeight $minClusterHeight -minBlockHeight $minBlockHeight -distance $distance -scale $scale -blockHeight $blockHeight -print 2 $readFile | validateBlockbuster.pl -d $maxNFRLength | perl -ane 'if(\$_=~/^>/) { \$id=\"\$F[1]:\$F[2]-\$F[3]\"; } else { print \"\$F[0]\\t\$F[1]\\t\$F[2]\\t\$id\\t\$F[4]\\t\$F[5]\\n\"; }' > $outDir/$ID.tmp$fileSuffix\n"); exit;
+    system("blockbuster.x -minClusterHeight $minClusterHeight -minBlockHeight $minBlockHeight -distance $distance -scale $scale -blockHeight $blockHeight -print 2 $readFile | validateBlockbuster.pl -d $maxNFRLength | perl -ane 'if(\$_=~/^>/) { \$id=\"\$F[1]:\$F[2]-\$F[3]\"; } else { print \"\$F[0]\\t\$F[1]\\t\$F[2]\\t\$id\\t\$F[4]\\t\$F[5]\\n\"; }' > $outDir/$ID.tmp$fileSuffix");
 
     #system("sortBed -i $outDir/$ID.tmp$fileSuffix | bedtools merge -nms -scores sum -i - | perl -ane '\$F[3]=~s/\\,.*//g; \$F[4]=sprintf(\"%0.2f\", \$F[4]); print \"\$F[0]\\t\$F[1]\\t\$F[2]\\t\$F[3]\\t\$F[4]\\t+\\n\";' > $outDir/$ID.bg$fileSuffix");
-    system("sortBed -i $outDir/$ID.tmp$fileSuffix | bedtools merge -c 4,5 -o distinct,sum -i - | perl -ane '\$F[3]=~s/\\,.*//g; \$F[4]=sprintf(\"%0.2f\", \$F[4]); print \"\$F[0]\\t\$F[1]\\t\$F[2]\\t\$F[3]\\t\$F[4]\\t+\\n\";' > $outDir/$ID.bg$fileSuffix");
+    system("sortBed -i $outDir/$ID.tmp$fileSuffix | bedtools merge -c 4,5 -o distinct,sum -i - -d $minNFRLength | perl -ane '\$F[3]=~s/\\,.*//g; \$F[4]=sprintf(\"%0.2f\", \$F[4]); print \"\$F[0]\\t\$F[1]\\t\$F[2]\\t\$F[3]\\t\$F[4]\\t+\\n\";' > $outDir/$ID.bg$fileSuffix");
 
     #system("rm $outDir/$ID.tmp$fileSuffix");
 }
