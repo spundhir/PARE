@@ -1,4 +1,4 @@
-#!/usr/bin/perl -w
+#!/usr/bin/env perl
 
 =copyright_info
 confusion2performance.pl: given a confusion matrix, evaluate the performance measures 

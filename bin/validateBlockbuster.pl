@@ -1,4 +1,4 @@
-#!/usr/bin/perl -w
+#!/usr/bin/env perl
 
 =copyright_info
 validateBlockbuster.pl: validate block groups in blockbuster output file

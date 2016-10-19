@@ -1,4 +1,4 @@
-#!/usr/bin/perl -w
+#!/usr/bin/env perl
 
 =copyright_info
 estimateSizeFactor.pl: estimate size factor for normalization across samples

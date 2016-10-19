@@ -1,4 +1,4 @@
-#!/usr/bin/perl -w
+#!/usr/bin/env perl
 
 =copyright_info
 commonNFR.pl: determine common Nucleosome Free Regions (NFR) between two replicates

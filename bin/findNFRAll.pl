@@ -1,4 +1,4 @@
-#!/usr/bin/perl -w
+#!/usr/bin/env perl
 
 =copyright_info
 findNFRAll.pl: determine Nucleosome Free Regions (NFR) using ChIP-seq data for histone marks

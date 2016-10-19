@@ -1,4 +1,4 @@
-#!/usr/bin/perl -w
+#!/usr/bin/env perl
 
 =copyright_info
 nfr2ucsc.pl: create UCSC track file for input NFR regions

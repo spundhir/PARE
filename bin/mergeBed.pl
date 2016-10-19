@@ -1,4 +1,4 @@
-#!/usr/bin/perl -w
+#!/usr/bin/env perl
 
 =copyright_info
 mergeBed.pl: pick coordinate in BED format by selecting the highest scoring among all the overlapping coordinates
