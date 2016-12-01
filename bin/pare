@@ -30,7 +30,7 @@ BLOCK_BKG_PERCENTILE="0.0005"
 usage() {
 	echo Program: "pare (Predict Active Regulatory Elements using histone marks)"
 	echo Author: BRIC, University of Copenhagen, Denmark
-	echo Version: 0.06
+	echo Version: 0.07
 	echo Contact: pundhir@binf.ku.dk
 	echo "Usage: pare -i <file(s)> [OPTIONS]"
 	echo "Options:"
@@ -112,6 +112,9 @@ if [ ! -f "$GENOME_FILE" ]; then
     echo "computation for $GENOME is not available yet"
     echo "please add the chromosome size file for $GENOME at $PAREPATH/data/annotations"
     echo "also update the $PAREPATH/data/annotations/GENOME_FILE"
+    echo
+    echo "chromosome size file for your organism can be downloaded using"
+    echo "mysql  --user=genome --host=genome-mysql.cse.ucsc.edu -A -D hg19 -e 'select chrom,size from chromInfo'"
     echo
     usage
 fi

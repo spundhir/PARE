@@ -22,6 +22,7 @@ copyright_info
 OUTDIR="nfr_random";
 GENOME="mm9"
 SHUFFLECOUNT=100000
+MAX_FAILED_SHUFFLE_ATTEMPT=100
 
 #### usage ####
 usage() {
@@ -43,13 +44,14 @@ usage() {
     echo " -n <int>    [total number of random NFRs (default: 100000)]"
     echo " -c <int>    [extend 3' end of reads by input number of bases]"
     echo "             [if multiple, please separate them by a comma]"
+    echo " -x <int>    [maximum limit of failed shuffle attempts before hard exit (default: 100)]"
 	echo " -h          [help]"
 	echo
 	exit 0
 }
 
 #### parse options ####
-while getopts i:k:l:o:pm:f:n:c:h ARG; do
+while getopts i:k:l:o:pm:f:n:c:x:h ARG; do
 	case "$ARG" in
 		i) BAMFILEs=$OPTARG;;
 		k) PEAKREGION=$OPTARG;;
@@ -60,6 +62,7 @@ while getopts i:k:l:o:pm:f:n:c:h ARG; do
         f) INCLREGION=$OPTARG;;
         n) SHUFFLECOUNT=$OPTARG;;
         c) EXTENDs=$OPTARG;;
+        x) MAX_FAILED_SHUFFLE_ATTEMPT=$OPTARG;;
 		h) HELP=1;;
 	esac
 done
@@ -168,17 +171,30 @@ readarray -t ARR_NFRREGION < $NFRREGION;
 INCREMENT_FACTOR=`perl -e '$frac='$SHUFFLECOUNT'/'${#ARR_NFRREGION[@]}'; if($frac>1) { print "2"; } else { print "1"; }'`;
 echo "(increment factor: $INCREMENT_FACTOR).. done";
 
+echo -n "check if enough background regions are available.. "
+readarray -t ARR_INCLREGION < $INCLREGION;
+INCLREGION_FACTOR=`perl -e '$frac='$SHUFFLECOUNT'/'${#ARR_INCLREGION[@]}'; printf("%0.0f", $frac);'`;
+if [ "$SHUFFLECOUNT" -gt 10000 -a "$INCLREGION_FACTOR" -gt 20 ]; then
+    echo "too few regions (N=${#ARR_INCLREGION[@]}) in $INCLREGION for finding $SHUFFLECOUNT shuffled regions.. exiting.. "
+    exit 
+fi
+echo "done"
+
 echo -n "create random NFR regions having length distribution similar to predicted ones.. "
 SEED=1
+FAIL_COUNT=0
 if [ "$INCREMENT_FACTOR" -gt 1 ]; then
     #for (( i=0; i<$SHUFFLECOUNT; i+=${#ARR_NFRREGION[@]} )); do
     for (( i=0; i<$(( SHUFFLECOUNT*2 )); i+=${#ARR_NFRREGION[@]} )); do
+        #if [ -f "$OUTDIR/RANDOM_NFRREGION.BED" -a "$(cat $OUTDIR/RANDOM_NFRREGION.BED 2>/dev/null | wc -l)" -gt "$SHUFFLECOUNT" ]; then
+        #    break
         if [ -s "$OUTDIR/RANDOM_NFRREGION.BED" ]; then
             if [ -z "$INCLREGION" ]; then
                 bedtools shuffle -seed $SEED -noOverlapping -i $NFRREGION -g $GENOME_FILE -excl $OUTDIR/RANDOM_NFRREGION.BED >> $OUTDIR/RANDOM_NFRREGION.BED
             else
                 #bedtools shuffle -seed $SEED -noOverlapping -i $NFRREGION -g $GENOME_FILE -incl $INCLREGION -excl $OUTDIR/RANDOM_NFRREGION.BED >> $OUTDIR/RANDOM_NFRREGION.BED
                 bedtools intersect -a <(bedtools shuffle -seed $SEED -noOverlapping -i $NFRREGION -g $GENOME_FILE -incl $INCLREGION -excl $OUTDIR/RANDOM_NFRREGION.BED) -b $INCLREGION -f 1.0 >> $OUTDIR/RANDOM_NFRREGION.BED
+                if [ $? -ne 0 ]; then FAIL_COUNT=$(echo $FAIL_COUNT | perl -ane '$count=$_+1; print "$count";'); fi
             fi
         else
             if [ -z "$INCLREGION" ]; then
@@ -189,6 +205,14 @@ if [ "$INCREMENT_FACTOR" -gt 1 ]; then
             fi
         fi
         SEED=$(( SEED+10 ))
+
+        ## exit if fail count exceeds 100 times
+        if [ "$FAIL_COUNT" -gt "$MAX_FAILED_SHUFFLE_ATTEMPT" ]; then
+            echo "failed counts.. $FAIL_COUNT"
+            echo "exceeded maximum limit of failed shuffle attempts ($MAX_FAILED_SHUFFLE_ATTEMPT).. exiting.. "
+            exit;
+        fi
+
     done
 <<"COMMENT"
     for (( i=0; i<${#ARR_NFRREGION[@]}; i++ )); do
@@ -227,12 +251,16 @@ if [ ! -z "$PARALLEL" ]; then
     indexBed.sh -i $OUTDIR/RANDOM_NFRREGION.BED -o $OUTDIR/parallel -x x
 
     for file in `ls $OUTDIR/parallel/x*`; do
-        bed2nfrdip -i $file -j $BAMFILEs -k $SIZEFACTORs -o $file.score -e $EXTENDs -g $GENOME &
+        #bed2nfrdip -i $file -j $BAMFILEs -k $SIZEFACTORs -o $file.score -e $EXTENDs -g $GENOME &
+        ## NOW USES V2 (uses bedtools multicov - faster)
+        bed2nfrdipV2 -i $file -j $BAMFILEs -k $SIZEFACTORs -e $EXTENDs -g $GENOME -v | perl -ane 'print "$F[0]\t$F[1]\t$F[2]\t".$F[scalar(@F)-1]."\n";' > $file.score &
     done
     wait
     intersectBed -a <(cat $OUTDIR/parallel/x*score) -b $NFRREGION -v > $OUTDIR/RANDOM_NFRREGION.BED.SCORE
 else
-    bed2nfrdip -i $OUTDIR/RANDOM_NFRREGION.BED -j $BAMFILEs -k $SIZEFACTORs -o $OUTDIR/RANDOM_NFRREGION.BED.TMP -e $EXTENDs -g $GENOME &
+    #bed2nfrdip -i $OUTDIR/RANDOM_NFRREGION.BED -j $BAMFILEs -k $SIZEFACTORs -o $OUTDIR/RANDOM_NFRREGION.BED.TMP -e $EXTENDs -g $GENOME
+    ## NOW USES V2 (uses bedtools multicov - faster)
+    bed2nfrdipV2 -i $OUTDIR/RANDOM_NFRREGION.BED -j $BAMFILEs -k $SIZEFACTORs -e $EXTENDs -g $GENOME -v | perl -ane 'print "$F[0]\t$F[1]\t$F[2]\t".$F[scalar(@F)-1]."\n";' > $OUTDIR/RANDOM_NFRREGION.BED.TMP
     intersectBed -a $OUTDIR/RANDOM_NFRREGION.BED.TMP -b $NFRREGION -v > $OUTDIR/RANDOM_NFRREGION.BED.SCORE
     rm $OUTDIR/RANDOM_NFRREGION.BED.TMP
 fi

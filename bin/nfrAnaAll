@@ -19,7 +19,7 @@ You should have received a copy of the GNU General Public License
 along with this program.  If not, see <http://www.gnu.org/licenses/>.
 copyright_info
 
-VERSION="0.06"
+VERSION="0.07"
 OUTDIR="nfr";
 RANDOMDIR="nfr_random";
 DISTANCE=70
@@ -459,7 +459,7 @@ else
 fi
 
 if [ ! -s "$OUTDIR/$RANDOMDIR/RANDOM_NFRREGION.BED" -o ! -s "$OUTDIR/$RANDOMDIR/RANDOM_NFRREGION.BED.SCORE" ]; then
-    echo -n "(failed using 100,000 regions, try using 10000 regions).. "
+    echo -n "(failed using 100000 regions, try using 10000 regions).. "
     ID=`echo $BAMFILEs | perl -ane '$_=~s/^.*\///g; $_=~s/Rep.*$//g; $_=~s/\_$//g; print $_;'`;
 
     SHUFFLECOUNT=10000
