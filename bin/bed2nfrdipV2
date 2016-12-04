@@ -1,6 +1,24 @@
 #!/bin/bash
 #PBS -l nodes=1:ppn=4
 
+<<"copyright_info"
+bed2nfrdip: determine nfr dip for an input coordinates in BED format
+Copyright (C) 2015  Sachin Pundhir (pundhir@binf.ku.dk)
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program.  If not, see <http://www.gnu.org/licenses/>.
+copyright_info
+
 FLANK_WIN_UP=500
 FLANK_WIN_DOWN=500
 GENOME="mm9"
@@ -58,13 +76,14 @@ if [ -z "$BEDFILE" -o -z "$BAMFILE" -o "$HELP" ]; then
 	usage
 fi
 
-## populating files based on input genome
-if [ "$GENOME" == "mm9" ]; then
-    GENOME_FILE="/home/pundhir/project/genome_annotations/mouse.mm9.genome"
-elif [ "$GENOME" == "hg19" ]; then
-    GENOME_FILE="/home/pundhir/project/genome_annotations/human.hg19.genome"
-else
-    echo "Presently the program only support analysis for mm9 or hg19"
+## check if input genome option is suitable
+GENOME_FILE=$(initialize_genome -i $PAREPATH/data/annotations/GENOME_FILE -g $GENOME)
+GENOME_FILE=$PAREPATH/data/annotations/$GENOME_FILE
+if [ ! -f "$GENOME_FILE" ]; then
+    echo
+    echo "computation for $GENOME is not feasible yet"
+    echo "please add the chromosome size file for $GENOME at $PAREPATH/data/annotations"
+    echo "also update the $PAREPATH/data/annotations/GENOME_FILE"
     echo
     usage
 fi
