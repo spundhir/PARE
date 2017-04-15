@@ -35,7 +35,7 @@ usage() {
 	echo "[OPTIONS]:"
     echo " -o <dir>    [output directory (default: bam file location)]"
     echo " -c <file>   [file having chromosome's size. required for genomecov]"
-    echo "             [default: ~/software/RNAPipe/data/Mus_musculus/Ensembl/NCBIM37/ChromInfoRef.txt]"
+    echo "             [default: $PAREPATH/data/annotations/mouse.mm9.genome]"
     echo " -k          [keep bedGraph file also]"
     echo " -e <int>    [extend 3' end of reads by input number of bases (useful for ChIP-seq data)]"
 	echo " -h          [help]"
