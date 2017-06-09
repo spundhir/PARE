@@ -143,6 +143,8 @@ NORM_EXPR=`perl -e '$expr='$EXPR'/'$LENGTH'; print "$expr";'`;
 #SCORE=`perl -e '$score=(('$NORM_EXPR_UPSTREAM'+'$NORM_EXPR_DOWNSTREAM')/'$NORM_EXPR'); printf("%0.4f", log($score));'`;
 
 ## new scoring scheme
+#echo -e "$COOR: $EXPR\t$COOR_UPSTREAM: $EXPR_UPSTREAM\t$COOR_DOWNSTREAM: $EXPR_DOWNSTREAM"
+#echo -e "$LENGTH_UPSTREAM\t$LENGTH_DOWNSTREAM\t$LENGTH"
 EXPR_FLANKING=`perl -e '$expr='$EXPR_UPSTREAM'+'$EXPR_DOWNSTREAM'; print "$expr";'`;
 LENGTH_FLANKING=`perl -e '$len='$LENGTH_UPSTREAM'+'$LENGTH_DOWNSTREAM'; print "$len";'`;
 NORM_EXPR_FLANKING=`perl -e '$expr='$EXPR_FLANKING'/'$LENGTH_FLANKING'; print "$expr";'`;

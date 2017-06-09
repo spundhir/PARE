@@ -238,9 +238,10 @@ if [ -z "$THRESHOLD" ]; then
     THRESHOLD=5
 fi
 
-for(( i=0; i<${#BAMFILEa[@]}; i++ )); do
-    echo ${SIZEFACTORa[$i]}
-done > $OUTDIR/blockbuster_threshold.txt
-echo $HISTONE_MEDIAN_LENGTH >> $OUTDIR/blockbuster_threshold.txt
+echo $BLOCK_BKG_PERCENTILE > $OUTDIR/blockbuster_threshold.txt
+#for(( i=0; i<${#BAMFILEa[@]}; i++ )); do
+#    echo ${SIZEFACTORa[$i]}
+#done >> $OUTDIR/blockbuster_threshold.txt
+#echo $HISTONE_MEDIAN_LENGTH >> $OUTDIR/blockbuster_threshold.txt
 echo $THRESHOLD >> $OUTDIR/blockbuster_threshold.txt
 echo "All done. Bye"

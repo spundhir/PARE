@@ -30,14 +30,13 @@ usage() {
 	echo Author: BRIC, University of Copenhagen, Denmark
 	echo Version: 1.0
 	echo Contact: pundhir@binf.ku.dk
-	echo "Usage: bed2nfrdip -i <file> -j <file> -k <float> -o <file> [OPTIONS]"
+	echo "Usage: bed2nfrdip -i <file> -j <file> -k <float> [OPTIONS]"
 	echo "Options:"
-    echo " -i <file>   [input genomic coordinates in BED format]"
+    echo " -i <file>   [input genomic coordinates in BED format (can be stdin)]"
     echo " -j <file>   [input mapped reads in BAM format]"
     echo "             [if multiple seperate by a comma]"
     echo " -k <float>  [size factor to normalize the expression of read block]"
     echo "             [if multiple seperate by a comma]"
-    echo " -o <file>   [output file]"
     echo "[OPTIONS]"
     echo " -l <int>    [length of the upstream flanking window (default: 500)]"
     echo " -m <int>    [length of the downstream flanking window (default: 500)]"
@@ -50,12 +49,11 @@ usage() {
 }
 
 #### parse options ####
-while getopts i:j:k:o:l:m:e:g:h ARG; do
+while getopts i:j:k:l:m:e:g:h ARG; do
 	case "$ARG" in
 		i) BEDFILE=$OPTARG;;
 		j) BAMFILE=$OPTARG;;
 		k) SIZEFACTOR=$OPTARG;;
-        o) OUTFILE=$OPTARG;;
         l) FLANK_WIN_UP=$OPTARG;;
         m) FLANK_WIN_DOWN=$OPTARG;;
         e) EXTEND=$OPTARG;;
@@ -65,7 +63,7 @@ while getopts i:j:k:o:l:m:e:g:h ARG; do
 done
 
 ## usage, if necessary file and directories are given/exist
-if [ ! -f "$BEDFILE" -o -z "$BAMFILE" -o  -z "$SIZEFACTOR" -o -z "$OUTFILE" -o "$HELP" ]; then
+if [ -z "$BEDFILE" -o -z "$BAMFILE" -o -z "$SIZEFACTOR" -o "$HELP" ]; then
 	usage
 fi
 
@@ -125,7 +123,16 @@ if [ "$BAMFILES_COUNT" -ne "$SIZEFACTORS_COUNT" -o "$BAMFILES_COUNT" -ne "$EXTEN
     usage
 fi
 
-echo -n "compute nfr dip for input regions.. "
+## create temporary BED file if input is from stdin
+if [ "$BEDFILE" == "stdin" ]; then
+    TMP=$(cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w 32 | head -n 1)
+    while read LINE; do
+        echo "${LINE}"
+    done > $TMP
+    BEDFILE=$TMP
+fi
+
+#echo -n "compute nfr dip for input regions.. "
 readarray -t NFRREGION < $BEDFILE;
 
 for (( i=0; i<${#NFRREGION[@]}; i++ )); do
@@ -142,4 +149,11 @@ for (( i=0; i<${#NFRREGION[@]}; i++ )); do
     SCORE=`coor2nfrdip -i $COOR -j $BAMFILE -k $SIZEFACTOR -l $FLANK_WIN_UP -m $FLANK_WIN_DOWN -e $EXTEND -g $GENOME`
     #echo "coor2nfrdip -i $COOR -j $BAMFILE -k $SIZEFACTOR -l $FLANK_WIN_UP -m $FLANK_WIN_DOWN -e $EXTEND -g $GENOME"
     echo -e "$CHR\t$START\t$END\t$SCORE"
-done > $OUTFILE
+done
+
+## remove temporary file, if exists
+if [ ! -z "$TMP" ]; then
+    rm $TMP
+fi
+
+exit

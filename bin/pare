@@ -30,7 +30,7 @@ BLOCK_BKG_PERCENTILE="0.0005"
 usage() {
 	echo Program: "pare (Predict Active Regulatory Elements using histone marks)"
 	echo Author: BRIC, University of Copenhagen, Denmark
-	echo Version: 0.07
+	echo Version: 0.08
 	echo Contact: pundhir@binf.ku.dk
 	echo "Usage: pare -i <file(s)> [OPTIONS]"
 	echo "Options:"
@@ -46,6 +46,8 @@ usage() {
     echo " -n <int>    [minimum length of nucleosome free region (default: 20)]"
     echo " -v <int>    [maximum length of nucleosome free region (default: 1000)]"
     echo " -t <float>  [FDR at which to consider a NFR as significant (default: 0.05)]"
+    echo " -l <float>  [coverage threshold parameter; should be between 0 - 0.01 (default: 0.0005)]"
+    echo "             [NOTE: higher the value - more stringent would be the search]"
 	echo " -h          [help]"
     if [ ! -z "$PAREPATH" ]; then
     echo "Available genomes:"
@@ -56,7 +58,7 @@ usage() {
 }
 
 #### parse options ####
-while getopts i:c:k:o:m:p:n:v:t:h ARG; do
+while getopts i:c:k:o:m:p:n:v:t:l:h ARG; do
 	case "$ARG" in
 		i) BAMFILEs=$OPTARG;;
 		c) CONTROL=$OPTARG;;
@@ -67,6 +69,7 @@ while getopts i:c:k:o:m:p:n:v:t:h ARG; do
         n) MINNFRLENGTH=$OPTARG;;
         v) MAXNFRLENGTH=$OPTARG;;
         t) NFR_THRESHOLD=$OPTARG;;
+        l) BLOCK_BKG_PERCENTILE=$OPTARG;;
 		h) HELP=1;;
 	esac
 done
@@ -138,11 +141,11 @@ if [ ! -d "$OUTDIR/macs2" ]; then
 fi
 
 ## optimize threshold, if control file is provided
-if [ -f "$CONTROL" -o ! -z "$PEAKREGION" ]; then
-    BLOCK_BKG_PERCENTILE="0.0005"
-else
-    BLOCK_BKG_PERCENTILE="0.005"
-fi
+#if [ -f "$CONTROL" -o ! -z "$PEAKREGION" ]; then
+#    BLOCK_BKG_PERCENTILE="0.0005"
+#else
+#    BLOCK_BKG_PERCENTILE="0.005"
+#fi
 
 echo -n "Initialize input bam files (`date`).. "
 ## initialize input BAM files
@@ -154,9 +157,11 @@ echo "done"
 
 BAMFILEs=""
 for(( i=0; i<${#BAMFILEa[@]}; i++ )); do
-    scp ${BAMFILEa[$i]} $OUTDIR/macs2/histone_Rep$i.bam
+    #scp ${BAMFILEa[$i]} $OUTDIR/macs2/histone_Rep$i.bam
+    samtools rmdup -s ${BAMFILEa[$i]} $OUTDIR/macs2/histone_Rep$i.bam &
     BAMFILEs="$BAMFILEs,$OUTDIR/macs2/histone_Rep$i.bam"
 done
+wait
 BAMFILEs=$(echo $BAMFILEs | perl -ane '$_=~s/^\,//g; print $_;')
 echo "done"
 
@@ -217,6 +222,7 @@ elif [ -z "$PEAKREGION" ]; then
     fi
 
     cat $OUTDIR/macs2/MACS2_peaks.narrowPeak | sort -k 8rn,8 | head -n 20000 > $OUTDIR/macs2/MACS2_peaks20K.narrowPeak
+    #bedtools sample -i $OUTDIR/macs2/MACS2_peaks.narrowPeak -n 20000 -seed 1 > $OUTDIR/macs2/MACS2_peaks20K.narrowPeak
     PEAKREGION="$OUTDIR/macs2/MACS2_peaks20K.narrowPeak"
 fi
 
@@ -240,10 +246,13 @@ ID=`echo $BAMFILEx | perl -ane '$_=~s/^.*\///g; $_=~s/Rep.*$//g; $_=~s/\_$//g; p
 
 #perl -e 'print "#chr\tstart\tend\tid\tnfrDip\tstrand\tup-block\tdown-block\tTPM (up-block)\tlength (up-block)\tTPM (down-block)\tlength (down-block)\tTPM (NFR)\tlength (NFR)\tp-value\tFDR\tOrientation\n";' > $OUTDIR/RESULTS.TXT
 #cat $OUTDIR/analysis/h3k4me1_helas3.All.nfr.sig >> $OUTDIR/RESULTS.TXT
-perl -e 'print "#chr\tstart\tend\tname\tscore (nfrDip)\tstrand\tp-value\tFDR\n";' > $OUTDIR/RESULTS.TXT
-cat $OUTDIR/analysis/$ID.All.nfr.sig | perl -ane 'print "$F[0]\t$F[1]\t$F[2]\t$F[3]\t$F[4]\t.\t$F[14]\t$F[15]\n";' >> $OUTDIR/RESULTS.TXT
-scp $OUTDIR/analysis/$ID.All.nfr.sig.ucsc $OUTDIR/RESULTS.UCSC
-
-convert_2_html_table -d "\t" -f $OUTDIR/RESULTS.TXT > $OUTDIR/RESULTS.HTML
+if [ "$(cat $OUTDIR/analysis/$ID.All.nfr.sig |  wc -l)" -gt 0 ]; then
+    perl -e 'print "#chr\tstart\tend\tname\tscore (nfrDip)\tstrand\tp-value\tFDR\n";' > $OUTDIR/RESULTS.TXT
+    cat $OUTDIR/analysis/$ID.All.nfr.sig | perl -ane 'print "$F[0]\t$F[1]\t$F[2]\t$F[3]\t$F[4]\t.\t$F[14]\t$F[15]\n";' >> $OUTDIR/RESULTS.TXT
+    scp $OUTDIR/analysis/$ID.All.nfr.sig.ucsc $OUTDIR/RESULTS.UCSC
+    convert_2_html_table -d "\t" -f $OUTDIR/RESULTS.TXT > $OUTDIR/RESULTS.HTML
+else
+    echo "No significant NFR is found in the data. This may be due to a stringent coverage parameter (-l). Please try relaxing it to a lower value, for example: 0.00001" > $OUTDIR/RESULTS.TXT
+fi
 
 exit

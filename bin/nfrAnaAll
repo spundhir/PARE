@@ -2,7 +2,7 @@
 #PBS -l nodes=1:ppn=4
 
 <<"copyright_info"
-nfrAnaAll: determine nucleosome free regions using histone marks (two replicates)
+nfrAnaAll: determine nucleosome free regions using histone marks
 Copyright (C) 2015  Sachin Pundhir (pundhir@binf.ku.dk)
 
 This program is free software: you can redistribute it and/or modify
@@ -19,7 +19,7 @@ You should have received a copy of the GNU General Public License
 along with this program.  If not, see <http://www.gnu.org/licenses/>.
 copyright_info
 
-VERSION="0.07"
+VERSION="0.08"
 OUTDIR="nfr";
 RANDOMDIR="nfr_random";
 DISTANCE=70
@@ -235,7 +235,16 @@ if [ ! -s "$OUTDIR/optimizeThreshold/blockbuster_threshold.txt" ] && [ -z "$MINC
     echo "done"
 elif [ -s "$OUTDIR/optimizeThreshold/blockbuster_threshold.txt" ]; then
     echo -n "initialize -c, -e parameters ($OUTDIR/optimizeThreshold/blockbuster_threshold.txt exists) (`date`).. "
-    HEIGHT_THRESHOLD=$(tail -n 1 $OUTDIR/optimizeThreshold/blockbuster_threshold.txt);
+    BLOCK_BKG_PERCENTILE_OLD=$(head -n 1 $OUTDIR/optimizeThreshold/blockbuster_threshold.txt)
+    if [ "$BLOCK_BKG_PERCENTILE" -ne "$BLOCK_BKG_PERCENTILE_OLD" ]; then
+        THRESHOLD=$($PAREPATH/share/R/blockbuster_threshold_nfr.R -i $OUTDIR/optimizeThreshold/histone.reads.countStat -j $OUTDIR/optimizeThreshold/bkg.reads.countStat -k $OUTDIR/optimizeThreshold/tf.reads.countStat -o $OUTDIR/optimizeThreshold/blockbuster_threshold.pdf -m 1 -p $BLOCK_BKG_PERCENTILE 2>/dev/null)
+        THRESHOLD=$(echo $THRESHOLD | sed -E 's/\s+.*//g');
+        echo $BLOCK_BKG_PERCENTILE > $OUTDIR/optimizeThreshold/blockbuster_threshold.txt
+        echo $THRESHOLD >> $OUTDIR/optimizeThreshold/blockbuster_threshold.txt
+        rm -r $OUTDIR/$RANDOMDIR/*
+    fi
+
+    HEIGHT_THRESHOLD=$(tail -n 1 $OUTDIR/optimizeThreshold/blockbuster_threshold.txt)
     MINCLUSTERHEIGHT=$HEIGHT_THRESHOLD
     MINBLOCKHEIGHT=$HEIGHT_THRESHOLD
     echo "done"
@@ -244,7 +253,7 @@ fi
 ## check, if everything worked properly
 if [ -z "$HEIGHT_THRESHOLD" ]; then
     echo
-    echo "Error: Something didn't worked properly. Please check the log files under analysis/logs/blockbuster_threshold_nfr.log";
+    echo "Error: Something didn't worked properly. Please check the log files under $OUTDIR/analysis/logs/blockbuster_threshold_nfr.log";
     echo
     exit 1
 fi
@@ -268,7 +277,8 @@ echo "#timestamp: $DATE
 #number of times NFR regions should be shuffled: $SHUFFLECOUNT 
 #optimal TF peak summit file: $TFSUMMIT
 #reference genome: $GENOME
-#extend 3' end of reads: $EXTENDs" > $OUTDIR/PARAMETERS
+#extend 3' end of reads: $EXTENDs
+#coverage threshold parameter: $BLOCK_BKG_PERCENTILE" > $OUTDIR/PARAMETERS
 
 <<"COMMENT"
 COMMENT
@@ -315,7 +325,8 @@ for(( i=0; i<${#BAMFILEa[@]}; i++ )); do
     ID=`echo ${BAMFILEa[$i]} | perl -ane '$_=~s/^.*\///g; $_=~s/\.gz$//g; print $_;'`;
 
     if [ ! -s "$OUTDIR/$ID.bed" ]; then
-        bam2bedForChIP -i ${BAMFILEa[$i]} -o $OUTDIR/$ID.bed -s ${SIZEFACTORa[$i]} -d -e ${EXTENDa[$i]} -g $GENOME
+        bam2bedForChIP -i ${BAMFILEa[$i]} -o $OUTDIR/$ID.bed -s ${SIZEFACTORa[$i]} -e ${EXTENDa[$i]} -g $GENOME
+        #bam2bedForChIP -i ${BAMFILEa[$i]} -o $OUTDIR/$ID.bed -s ${SIZEFACTORa[$i]} -d -e ${EXTENDa[$i]} -g $GENOME
     else
         echo -n "($OUTDIR/$ID.bed already exists).. "
     fi
@@ -473,6 +484,11 @@ if [ -s "$OUTDIR/$RANDOMDIR/RANDOM_NFRREGION.BED" -a -s "$OUTDIR/$RANDOMDIR/RAND
 else
     cat $OUTDIR/$ID.All.nfr | perl -ane 'chomp($_); print "$_\tNA\tNA\tNA\n";' > $OUTDIR/$ID.All.nfrP
     scp $OUTDIR/$ID.All.nfrP $OUTDIR/$ID.All.nfr.sig
+fi
+
+## use p-values to output significant regions, if no significant region is found based on FDR
+if [ "$(cat $OUTDIR/$ID.All.nfr.sig |  wc -l)" -eq 0 ]; then
+    perl -ane 'if($F[14]<'$NFR_THRESHOLD') { print $_; }' $OUTDIR/$ID.All.nfrP > $OUTDIR/$ID.All.nfr.sig
 fi
 
 nfr2ucsc.pl -i $OUTDIR/$ID.All.nfr.sig > $OUTDIR/$ID.All.nfr.sig.ucsc
