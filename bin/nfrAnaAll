@@ -236,14 +236,14 @@ if [ ! -s "$OUTDIR/optimizeThreshold/blockbuster_threshold.txt" ] && [ -z "$MINC
 elif [ -s "$OUTDIR/optimizeThreshold/blockbuster_threshold.txt" ]; then
     echo -n "initialize -c, -e parameters ($OUTDIR/optimizeThreshold/blockbuster_threshold.txt exists) (`date`).. "
     BLOCK_BKG_PERCENTILE_OLD=$(head -n 1 $OUTDIR/optimizeThreshold/blockbuster_threshold.txt)
-    if [ "$BLOCK_BKG_PERCENTILE" -ne "$BLOCK_BKG_PERCENTILE_OLD" ]; then
+
+    if [ "$(echo $BLOCK_BKG_PERCENTILE_OLD | perl -ane 'if($_!~/^'$BLOCK_BKG_PERCENTILE'$/) { print "1"; } else { print "0"; }')" -eq 1 ]; then
         THRESHOLD=$($PAREPATH/share/R/blockbuster_threshold_nfr.R -i $OUTDIR/optimizeThreshold/histone.reads.countStat -j $OUTDIR/optimizeThreshold/bkg.reads.countStat -k $OUTDIR/optimizeThreshold/tf.reads.countStat -o $OUTDIR/optimizeThreshold/blockbuster_threshold.pdf -m 1 -p $BLOCK_BKG_PERCENTILE 2>/dev/null)
         THRESHOLD=$(echo $THRESHOLD | sed -E 's/\s+.*//g');
         echo $BLOCK_BKG_PERCENTILE > $OUTDIR/optimizeThreshold/blockbuster_threshold.txt
         echo $THRESHOLD >> $OUTDIR/optimizeThreshold/blockbuster_threshold.txt
         rm -r $OUTDIR/$RANDOMDIR/*
     fi
-
     HEIGHT_THRESHOLD=$(tail -n 1 $OUTDIR/optimizeThreshold/blockbuster_threshold.txt)
     MINCLUSTERHEIGHT=$HEIGHT_THRESHOLD
     MINBLOCKHEIGHT=$HEIGHT_THRESHOLD
@@ -421,6 +421,7 @@ else
     echo "done"
 fi
 
+ID=`echo $BAMFILEs | perl -ane '$_=~s/^.*\///g; $_=~s/Rep.*$//g; $_=~s/\_$//g; print $_;'`;
 echo -n "Create UCSC browser file for all predicted NFRs (`date`).. "
 if [ ! -s "$OUTDIR/$ID.All.nfr" ]; then
     echo
@@ -482,8 +483,6 @@ if [ ! -s "$OUTDIR/$RANDOMDIR/RANDOM_NFRREGION.BED" -o ! -s "$OUTDIR/$RANDOMDIR/
         randomNfrAna -i $BAMFILEs -k $PEAKREGION -l $OUTDIR/$ID.All.nfr -m $GENOME -o $OUTDIR/$RANDOMDIR -f $OUTDIR/$RANDOMDIR/INCLREGION.BED -n $SHUFFLECOUNT -c $EXTENDs &>$OUTDIR/logs/nfrAna_random.log
     else
         randomNfrAna -i $BAMFILEs -k $PEAKREGION -l $OUTDIR/$ID.All.nfr -m $GENOME -o $OUTDIR/$RANDOMDIR -p $PARALLEL -f $OUTDIR/$RANDOMDIR/INCLREGION.BED -n $SHUFFLECOUNT -c $EXTENDs &>$OUTDIR/logs/nfrAna_random.log
-    else
-
     fi
 fi
 

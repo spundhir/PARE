@@ -166,8 +166,10 @@ echo "done"
 
 BAMFILEs=""
 for(( i=0; i<${#BAMFILEa[@]}; i++ )); do
-    #scp ${BAMFILEa[$i]} $OUTDIR/macs2/histone_Rep$i.bam
-    samtools rmdup -s ${BAMFILEa[$i]} $OUTDIR/macs2/histone_Rep$i.bam &
+    if [ ! -s "$OUTDIR/macs2/histone_Rep$i.bam" ]; then
+        #scp ${BAMFILEa[$i]} $OUTDIR/macs2/histone_Rep$i.bam
+        samtools rmdup -s ${BAMFILEa[$i]} $OUTDIR/macs2/histone_Rep$i.bam &
+    fi
     BAMFILEs="$BAMFILEs,$OUTDIR/macs2/histone_Rep$i.bam"
 done
 wait
@@ -254,9 +256,13 @@ echo "Prepare final output files (`date`).. "
 ## prepare final output files
 ID=`echo $BAMFILEx | perl -ane '$_=~s/^.*\///g; $_=~s/Rep.*$//g; $_=~s/\_$//g; print $_;'`;
 
-perl -e 'print "#chr\tstart\tend\tid\tnfrDip\tstrand\tup-block\tdown-block\tTPM (up-block)\tlength (up-block)\tTPM (down-block)\tlength (down-block)\tTPM (NFR)\tlength (NFR)\tp-value\tFDR\tOrientation\n";' > $OUTDIR/RESULTS.ALL
-cat $OUTDIR/analysis/$ID.All.nfrP >> $OUTDIR/RESULTS.ALL
+## all results
+if [ -s "$OUTDIR/analysis/$ID.All.nfrP" ]; then
+    perl -e 'print "#chr\tstart\tend\tid\tnfrDip\tstrand\tup-block\tdown-block\tTPM (up-block)\tlength (up-block)\tTPM (down-block)\tlength (down-block)\tTPM (NFR)\tlength (NFR)\tp-value\tFDR\tOrientation\n";' > $OUTDIR/RESULTS.ALL
+    cat $OUTDIR/analysis/$ID.All.nfrP >> $OUTDIR/RESULTS.ALL
+fi
 
+## significant results
 if [ "$(cat $OUTDIR/analysis/$ID.All.nfr.sig |  wc -l)" -gt 0 ]; then
     echo "#NOTE: No significant NFR is found at FDR < $NFR_THRESHOLD. Instead using p-value < $NFR_THRESHOLD to output significant NFRs" > $OUTDIR/RESULTS.TXT
     perl -e 'print "#chr\tstart\tend\tname\tscore (nfrDip)\tstrand\tp-value\tFDR\n";' > $OUTDIR/RESULTS.TXT
