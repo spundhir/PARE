@@ -257,7 +257,7 @@ if [ ! -z "$PARALLEL" ]; then
     #done
     #wait
 
-    ls $OUTDIR/parallel/x* | grep -v score | parallel -j $PARALLEL 'bed2nfrdipV2 -i {} -j $BAMFILEs -k $SIZEFACTORs -e $EXTENDs -g $GENOME -v > "{}".score' 
+    ls $OUTDIR/parallel/x* | grep -v score | parallel -j $PARALLEL 'bed2nfrdipV2 -i '{}' -j '$BAMFILEs' -k '$SIZEFACTORs' -e '$EXTENDs' -g '$GENOME' -v > '{}'.score'
 
     intersectBed -a <(cat $OUTDIR/parallel/x*score) -b $NFRREGION -v > $OUTDIR/RANDOM_NFRREGION.BED.SCORE
 else
