@@ -260,25 +260,25 @@ fi
 
 ## print chosen parameters to file
 DATE=`date`
-echo "#timestamp: $DATE
-#version: $VERSION
-#input BAM file(s): $BAMFILEs
-#input histone peak region file: $PEAKREGION
-#output directory: $OUTDIR
-#output directory for randomly shuffled NFR: $OUTDIR/$RANDOMDIR
-#minimum reads in block group: $MINCLUSTERHEIGHT
-#minimum reads in block: $MINBLOCKHEIGHT
-#minimum distance between the blocks: $DISTANCE
-#scale to define blocks: $SCALE
-#block height: $BLOCKHEIGHT
-#minimum length of NFR: $MINNFRLENGTH
-#maximum length of NFR: $MAXNFRLENGTH
-#FDR at which to select significant NFR: $NFR_THRESHOLD
-#number of times NFR regions should be shuffled: $SHUFFLECOUNT 
-#optimal TF peak summit file: $TFSUMMIT
-#reference genome: $GENOME
-#extend 3' end of reads: $EXTENDs
-#coverage threshold parameter: $BLOCK_BKG_PERCENTILE" > $OUTDIR/PARAMETERS
+echo "# timestamp: $DATE
+# version: $VERSION
+# input BAM file(s): $BAMFILEs
+# input histone peak region file: $PEAKREGION
+# output directory: $OUTDIR
+# output directory for randomly shuffled NFR: $OUTDIR/$RANDOMDIR
+# minimum reads in block group: $MINCLUSTERHEIGHT
+# minimum reads in block: $MINBLOCKHEIGHT
+# minimum distance between the blocks: $DISTANCE
+# scale to define blocks: $SCALE
+# block height: $BLOCKHEIGHT
+# minimum length of NFR: $MINNFRLENGTH
+# maximum length of NFR: $MAXNFRLENGTH
+# FDR at which to select significant NFR: $NFR_THRESHOLD
+# number of times NFR regions should be shuffled: $SHUFFLECOUNT 
+# optimal TF peak summit file: $TFSUMMIT
+# reference genome: $GENOME
+# extend 3' end of reads: $EXTENDs
+# coverage threshold parameter: $BLOCK_BKG_PERCENTILE" > $OUTDIR/PARAMETERS
 
 <<"COMMENT"
 COMMENT
@@ -464,7 +464,11 @@ echo -n "NFR analysis for randomly distributed nfr regions (`date`).. "
 ID=`echo $BAMFILEs | perl -ane '$_=~s/^.*\///g; $_=~s/Rep.*$//g; $_=~s/\_$//g; print $_;'`;
 
 if [ ! -s "$OUTDIR/$RANDOMDIR/RANDOM_NFRREGION.BED" -o ! -s "$OUTDIR/$RANDOMDIR/RANDOM_NFRREGION.BED.SCORE" ]; then
-    randomNfrAna -i $BAMFILEs -k $PEAKREGION -l $OUTDIR/$ID.All.nfr -m $GENOME -o $OUTDIR/$RANDOMDIR -p -f $OUTDIR/$RANDOMDIR/INCLREGION.BED -n $SHUFFLECOUNT -c $EXTENDs &>$OUTDIR/logs/nfrAna_random.log
+    if [ -z "$PARALLEL" ]; then
+        randomNfrAna -i $BAMFILEs -k $PEAKREGION -l $OUTDIR/$ID.All.nfr -m $GENOME -o $OUTDIR/$RANDOMDIR -f $OUTDIR/$RANDOMDIR/INCLREGION.BED -n $SHUFFLECOUNT -c $EXTENDs &>$OUTDIR/logs/nfrAna_random.log
+    else
+        randomNfrAna -i $BAMFILEs -k $PEAKREGION -l $OUTDIR/$ID.All.nfr -m $GENOME -o $OUTDIR/$RANDOMDIR -p $PARALLEL -f $OUTDIR/$RANDOMDIR/INCLREGION.BED -n $SHUFFLECOUNT -c $EXTENDs &>$OUTDIR/logs/nfrAna_random.log
+    fi
 else
     echo "($OUTDIR/$RANDOMDIR/RANDOM_NFRREGION.BED and $OUTDIR/$RANDOMDIR/RANDOM_NFRREGION.BED.SCORE already exists).. "
 fi
@@ -474,7 +478,13 @@ if [ ! -s "$OUTDIR/$RANDOMDIR/RANDOM_NFRREGION.BED" -o ! -s "$OUTDIR/$RANDOMDIR/
     ID=`echo $BAMFILEs | perl -ane '$_=~s/^.*\///g; $_=~s/Rep.*$//g; $_=~s/\_$//g; print $_;'`;
 
     SHUFFLECOUNT=10000
-    randomNfrAna -i $BAMFILEs -k $PEAKREGION -l $OUTDIR/$ID.All.nfr -m $GENOME -o $OUTDIR/$RANDOMDIR -p -f $OUTDIR/$RANDOMDIR/INCLREGION.BED -n $SHUFFLECOUNT -c $EXTENDs &>$OUTDIR/logs/nfrAna_random.log
+    if [ -z "$PARALLEL" ]; then
+        randomNfrAna -i $BAMFILEs -k $PEAKREGION -l $OUTDIR/$ID.All.nfr -m $GENOME -o $OUTDIR/$RANDOMDIR -f $OUTDIR/$RANDOMDIR/INCLREGION.BED -n $SHUFFLECOUNT -c $EXTENDs &>$OUTDIR/logs/nfrAna_random.log
+    else
+        randomNfrAna -i $BAMFILEs -k $PEAKREGION -l $OUTDIR/$ID.All.nfr -m $GENOME -o $OUTDIR/$RANDOMDIR -p $PARALLEL -f $OUTDIR/$RANDOMDIR/INCLREGION.BED -n $SHUFFLECOUNT -c $EXTENDs &>$OUTDIR/logs/nfrAna_random.log
+    else
+
+    fi
 fi
 
 if [ -s "$OUTDIR/$RANDOMDIR/RANDOM_NFRREGION.BED" -a -s "$OUTDIR/$RANDOMDIR/RANDOM_NFRREGION.BED.SCORE" ]; then

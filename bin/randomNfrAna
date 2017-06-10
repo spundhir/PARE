@@ -38,7 +38,7 @@ usage() {
 	echo " -l <file>   [nfr file created by nfrAna script]"
     echo "[OPTIONS]"
     echo " -o <dir>    [output directory to store results (default: ./nfr_random)"
-    echo " -p          [run in parallel by dividing nfr file into mutliple smaller files]"
+    echo " -p <int>    [number of processors to use (run in parallel)]"
     echo " -m <string> [genome (default: mm9)]"
     echo " -f <file>   [random NFRs should fall within these regions]"
     echo " -n <int>    [total number of random NFRs (default: 100000)]"
@@ -51,13 +51,13 @@ usage() {
 }
 
 #### parse options ####
-while getopts i:k:l:o:pm:f:n:c:x:h ARG; do
+while getopts i:k:l:o:p:m:f:n:c:x:h ARG; do
 	case "$ARG" in
 		i) BAMFILEs=$OPTARG;;
 		k) PEAKREGION=$OPTARG;;
 		l) NFRREGION=$OPTARG;;
         o) OUTDIR=$OPTARG;;
-        p) PARALLEL=1;;
+        p) PARALLEL=$OPTARG;;
         m) GENOME=$OPTARG;;
         f) INCLREGION=$OPTARG;;
         n) SHUFFLECOUNT=$OPTARG;;
@@ -250,17 +250,20 @@ if [ ! -z "$PARALLEL" ]; then
     rm -r $OUTDIR/parallel/x*
     indexBed.sh -i $OUTDIR/RANDOM_NFRREGION.BED -o $OUTDIR/parallel -x x
 
-    for file in `ls $OUTDIR/parallel/x*`; do
-        #bed2nfrdip -i $file -j $BAMFILEs -k $SIZEFACTORs -e $EXTENDs -g $GENOME > $file.score &
-        ## NOW USES V2 (uses bedtools multicov - faster)
-        bed2nfrdipV2 -i $file -j $BAMFILEs -k $SIZEFACTORs -e $EXTENDs -g $GENOME -v | perl -ane 'print "$F[0]\t$F[1]\t$F[2]\t".$F[scalar(@F)-1]."\n";' > $file.score &
-    done
-    wait
+    #for file in `ls $OUTDIR/parallel/x*`; do
+    #    #bed2nfrdip -i $file -j $BAMFILEs -k $SIZEFACTORs -e $EXTENDs -g $GENOME > $file.score &
+    #    ## NOW USES V2 (uses bedtools multicov - faster)
+    #    bed2nfrdipV2 -i $file -j $BAMFILEs -k $SIZEFACTORs -e $EXTENDs -g $GENOME -v | perl -ane 'print "$F[0]\t$F[1]\t$F[2]\t".$F[scalar(@F)-1]."\n";' > $file.score &
+    #done
+    #wait
+
+    ls $OUTDIR/parallel/x* | grep -v score | parallel -j $PARALLEL 'bed2nfrdipV2 -i {} -j $BAMFILEs -k $SIZEFACTORs -e $EXTENDs -g $GENOME -v > "{}".score' 
+
     intersectBed -a <(cat $OUTDIR/parallel/x*score) -b $NFRREGION -v > $OUTDIR/RANDOM_NFRREGION.BED.SCORE
 else
     #bed2nfrdip -i $OUTDIR/RANDOM_NFRREGION.BED -j $BAMFILEs -k $SIZEFACTORs -e $EXTENDs -g $GENOME > $OUTDIR/RANDOM_NFRREGION.BED.TMP &
     ## NOW USES V2 (uses bedtools multicov - faster)
-    bed2nfrdipV2 -i $OUTDIR/RANDOM_NFRREGION.BED -j $BAMFILEs -k $SIZEFACTORs -e $EXTENDs -g $GENOME -v | perl -ane 'print "$F[0]\t$F[1]\t$F[2]\t".$F[scalar(@F)-1]."\n";' > $OUTDIR/RANDOM_NFRREGION.BED.TMP
+    bed2nfrdipV2 -i $OUTDIR/RANDOM_NFRREGION.BED -j $BAMFILEs -k $SIZEFACTORs -e $EXTENDs -g $GENOME -v > $OUTDIR/RANDOM_NFRREGION.BED.TMP
     intersectBed -a $OUTDIR/RANDOM_NFRREGION.BED.TMP -b $NFRREGION -v > $OUTDIR/RANDOM_NFRREGION.BED.SCORE
     rm $OUTDIR/RANDOM_NFRREGION.BED.TMP
 fi

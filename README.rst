@@ -3,11 +3,15 @@
 README file for PARE (v0.08)
 ====================================================================
 
-Important Note
+Changes
 ==============
-    - bug fix for incorrect FDR computation in previous version (v0.07).
+    - important bug fix during FDR computation in previous version (v0.07).
 
-    - PARE now supports one or more BAM files (replicates) as input. Previous versions of PARE (0.01 - 0.05) supports only two BAM files (replicates) as input. In practical terms, -j parameter is deprecated and -p parameter requires an argument now.
+    - now user can control the stringency level at which to search for NFRs - usingg the -l parameter.
+
+    - now performs normalization of read coverage to account for sequencing depth after removing the PCR duplicates.
+
+    - since v0.06 PARE supports one or more BAM files (replicates) as input. Previous versions of PARE (0.01 - 0.05) supports only two BAM files (replicates) as input. In practical terms, -j parameter is deprecated and -p parameter requires an argument now.
 
 
 Description
