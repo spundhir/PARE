@@ -7,7 +7,7 @@ Changes
 ==============
     - important bug fix during FDR computation in previous version (v0.07).
 
-    - now user can control the stringency level at which to search for NFRs - usingg the -l parameter.
+    - now user can control the stringency level at which to search for NFRs - using the -l parameter.
 
     - now performs normalization of read coverage to account for sequencing depth after removing the PCR duplicates.
 
