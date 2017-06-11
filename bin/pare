@@ -289,7 +289,7 @@ fi
 ## end time
 END_TIME=$(date +%s)
 RUN_TIME=$((END_TIME-START_TIME))
-RUN_TIME=$(printf '%dh:%dm\n' $(($RUN_TIME/60)) $(($RUN_TIME%60)))
+RUN_TIME=$(printf '%dh:%dm:%ds\n' $(($RUN_TIME/3600)) $(($RUN_TIME%3600/60)) $(($RUN_TIME%60)))
 
 DATE=`date`
 echo "# timestamp: $DATE
