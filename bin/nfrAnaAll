@@ -62,13 +62,14 @@ usage() {
     echo " -t <float>  [FDR at which to consider a NFR as significant (default: 0.05)]"
     echo " -u <int>    [number of times NFR regions should be shuffled to compute p-values (default: 100000)]"
     echo " -z <float>  [percentile cutoff to optimize blockbuster threshold (default: 0.0005)]"
+    echo " -w          [create bigwig files for input bam files]"
 	echo " -h          [help]"
 	echo
 	exit 0
 }
 
 #### parse options ####
-while getopts i:k:o:r:f:m:p:dc:e:x:s:g:n:v:t:u:z:h ARG; do
+while getopts i:k:o:r:f:m:p:dc:e:x:s:g:n:v:t:u:z:wh ARG; do
 	case "$ARG" in
 		i) BAMFILEs=$OPTARG;;
 		k) PEAKREGION=$OPTARG;;
@@ -88,6 +89,7 @@ while getopts i:k:o:r:f:m:p:dc:e:x:s:g:n:v:t:u:z:h ARG; do
         t) NFR_THRESHOLD=$OPTARG;;
         u) SHUFFLECOUNT=$OPTARG;;
         z) BLOCK_BKG_PERCENTILE=$OPTARG;;
+        w) BIGWIG=1;;
 		h) HELP=1;;
 	esac
 done
@@ -503,14 +505,17 @@ fi
 nfr2ucsc.pl -i $OUTDIR/$ID.All.nfr.sig > $OUTDIR/$ID.All.nfr.sig.ucsc
 echo "done"
 
-echo -n "Convert input bam to bigWig format to visualize in UCSC browser (`date`).. "
-for(( i=0; i<${#BAMFILEa[@]}; i++ )); do
-    ID=$(echo ${BAMFILEa[$i]} | perl -ane '$_=~s/\.bam.*//g; print $_;');
-    if [ ! -s "$ID.bw" ]; then
-        bam2bwForChIP -i ${BAMFILEa[$i]} -c $GENOME_FILE -e ${EXTENDa[$i]} &
-    else
-        echo -n "($ID.bw already exists..) "
-    fi
-done
-wait
-echo "All done. Bye"
+if [ ! -z "$BIGWIG" ]; then
+    echo -n "Convert input bam to bigWig format to visualize in UCSC browser (`date`).. "
+    for(( i=0; i<${#BAMFILEa[@]}; i++ )); do
+        ID=$(echo ${BAMFILEa[$i]} | perl -ane '$_=~s/\.bam.*//g; print $_;');
+        if [ ! -s "$ID.bw" ]; then
+            bam2bwForChIP -i ${BAMFILEa[$i]} -c $GENOME_FILE -e ${EXTENDa[$i]} &
+        else
+            echo -n "($ID.bw already exists..) "
+        fi
+    done
+    wait
+    echo "done"
+fi
+echo "done"

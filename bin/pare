@@ -49,6 +49,7 @@ usage() {
     echo " -t <float>  [FDR at which to consider a NFR as significant (default: 0.05)]"
     echo " -l <float>  [coverage threshold parameter; should be between 0 - 0.01 (default: 0.0005)]"
     echo "             [NOTE: higher the value - more stringent would be the search]"
+    echo " -w          [create bigwig files for input bam files]"
 	echo " -h          [help]"
     if [ ! -z "$PAREPATH" ]; then
     echo "Available genomes:"
@@ -59,7 +60,7 @@ usage() {
 }
 
 #### parse options ####
-while getopts i:c:k:o:m:p:n:v:t:l:h ARG; do
+while getopts i:c:k:o:m:p:n:v:t:l:wh ARG; do
 	case "$ARG" in
 		i) BAMFILEs=$OPTARG;;
 		c) CONTROL=$OPTARG;;
@@ -71,6 +72,7 @@ while getopts i:c:k:o:m:p:n:v:t:l:h ARG; do
         v) MAXNFRLENGTH=$OPTARG;;
         t) NFR_THRESHOLD=$OPTARG;;
         l) BLOCK_BKG_PERCENTILE=$OPTARG;;
+        w) BIGWIG=1;;
 		h) HELP=1;;
 	esac
 done
@@ -242,9 +244,17 @@ fi
 
 ## run PARE
 if [ -z "$PARALLEL" ]; then
-    $PAREPATH/bin/nfrAnaAll -i $BAMFILEs -k $PEAKREGION -o $OUTDIR/analysis -m $GENOME -n $MINNFRLENGTH -v $MAXNFRLENGTH -t $NFR_THRESHOLD -d -z $BLOCK_BKG_PERCENTILE
+    if [ -z "$BIGWIG" ]; then
+        $PAREPATH/bin/nfrAnaAll -i $BAMFILEs -k $PEAKREGION -o $OUTDIR/analysis -m $GENOME -n $MINNFRLENGTH -v $MAXNFRLENGTH -t $NFR_THRESHOLD -d -z $BLOCK_BKG_PERCENTILE
+    else
+        $PAREPATH/bin/nfrAnaAll -i $BAMFILEs -k $PEAKREGION -o $OUTDIR/analysis -m $GENOME -n $MINNFRLENGTH -v $MAXNFRLENGTH -t $NFR_THRESHOLD -d -z $BLOCK_BKG_PERCENTILE -w
+    fi
 else
-    $PAREPATH/bin/nfrAnaAll -i $BAMFILEs -k $PEAKREGION -o $OUTDIR/analysis -m $GENOME -n $MINNFRLENGTH -v $MAXNFRLENGTH -t $NFR_THRESHOLD -d -p $PARALLEL -z $BLOCK_BKG_PERCENTILE
+    if [ -z "$BIGWIG" ]; then
+        $PAREPATH/bin/nfrAnaAll -i $BAMFILEs -k $PEAKREGION -o $OUTDIR/analysis -m $GENOME -n $MINNFRLENGTH -v $MAXNFRLENGTH -t $NFR_THRESHOLD -d -p $PARALLEL -z $BLOCK_BKG_PERCENTILE
+    else
+        $PAREPATH/bin/nfrAnaAll -i $BAMFILEs -k $PEAKREGION -o $OUTDIR/analysis -m $GENOME -n $MINNFRLENGTH -v $MAXNFRLENGTH -t $NFR_THRESHOLD -d -p $PARALLEL -z $BLOCK_BKG_PERCENTILE -w
+    fi
 fi
 
 ## check, if everything worked properly
@@ -291,6 +301,6 @@ echo "# timestamp: $DATE
 # result file (html format): $OUTDIR/RESULTS.HTML
 # result file (all NFRs; sig + insig): $OUTDIR/RESULTS.ALL" > $OUTDIR/RUN.INFO
 
-echo "done"
+echo "All done. Bye"
 
 exit

@@ -244,4 +244,4 @@ echo $BLOCK_BKG_PERCENTILE > $OUTDIR/blockbuster_threshold.txt
 #done >> $OUTDIR/blockbuster_threshold.txt
 #echo $HISTONE_MEDIAN_LENGTH >> $OUTDIR/blockbuster_threshold.txt
 echo $THRESHOLD >> $OUTDIR/blockbuster_threshold.txt
-echo "All done. Bye"
+echo "done"
