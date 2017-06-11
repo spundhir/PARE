@@ -131,6 +131,9 @@ if [ ! -f "$GENOME_FILE" ]; then
     usage
 fi
 
+## start time
+START_TIME=$(date +%s)
+
 if [ "$GENOME" == "mm9" ]; then
     GENOME_MACS2="mm"
 elif [ "$GENOME" == "mm10" ]; then
@@ -258,8 +261,8 @@ ID=`echo $BAMFILEx | perl -ane '$_=~s/^.*\///g; $_=~s/Rep.*$//g; $_=~s/\_$//g; p
 
 ## all results
 if [ -s "$OUTDIR/analysis/$ID.All.nfrP" ]; then
-    perl -e 'print "#chr\tstart\tend\tid\tnfrDip\tstrand\tup-block\tdown-block\tTPM (up-block)\tlength (up-block)\tTPM (down-block)\tlength (down-block)\tTPM (NFR)\tlength (NFR)\tp-value\tFDR\tOrientation\n";' > $OUTDIR/RESULTS.ALL
-    cat $OUTDIR/analysis/$ID.All.nfrP >> $OUTDIR/RESULTS.ALL
+    perl -e 'print "#chr\tstart\tend\tname\tscore (nfrDip)\tstrand\tup-block\tdown-block\tTPM (up-block)\tlength (up-block)\tTPM (down-block)\tlength (down-block)\tTPM (NFR)\tlength (NFR)\tp-value\tFDR\tDirectionality score\n";' > $OUTDIR/RESULTS.ALL
+    cat $OUTDIR/analysis/$ID.All.nfrP | perl -ane '$F[5]="."; print "$F[0]"; foreach(@F[1..scalar(@F)-1]) { print "\t$_"; } print "\n";' >> $OUTDIR/RESULTS.ALL
 fi
 
 ## significant results
@@ -273,9 +276,15 @@ else
     echo "No significant NFR is found in the data. This may be due to a stringent coverage parameter (-l). Please try relaxing it to a lower value, for example: 0.00001" > $OUTDIR/RESULTS.TXT
 fi
 
+## end time
+END_TIME=$(date +%s)
+RUN_TIME=$((END_TIME-START_TIME))
+RUN_TIME=$(printf '%dh:%dm\n' $(($RUN_TIME/60)) $(($RUN_TIME%60)))
+
 DATE=`date`
 echo "# timestamp: $DATE
 # version: $VERSION
+# run time: $RUN_TIME
 # parameter file: $OUTDIR/analysis/PARAMETERS
 # result file (text format): $OUTDIR/RESULTS.TXT
 # result file (ucsc browser): $OUTDIR/RESULTS.UCSC
