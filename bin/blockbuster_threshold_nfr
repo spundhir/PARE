@@ -133,15 +133,15 @@ fi
 echo done
 
 ## print choosen parameters to file
-echo "#input BAM file(s): $BAMFILEs
-#input histone peak region file: $PEAKREGION
-#input TF peaks summit file: $TFREGION
-#output directory: $OUTDIR
-#input directory containing sizefactor files: $NFRDIR
-#reference genome: $GENOME
-#coor2expr option: $OPTION
-#extend 3' end of reads: $EXTENDs
-#percentile cutoff to optimize threshold: $BLOCK_BKG_PERCENTILE" > $OUTDIR/PARAMETERS
+echo "# input BAM file(s): $BAMFILEs
+# input histone peak region file: $PEAKREGION
+# input TF peaks summit file: $TFREGION
+# output directory: $OUTDIR
+# input directory containing sizefactor files: $NFRDIR
+# reference genome: $GENOME
+# coor2expr option: $OPTION
+# extend 3' end of reads: $EXTENDs
+# percentile cutoff to optimize threshold: $BLOCK_BKG_PERCENTILE" > $OUTDIR/PARAMETERS
 
 echo -n "Create index of input BAM files.. "
 for(( i=0; i<${#BAMFILEa[@]}; i++ )); do

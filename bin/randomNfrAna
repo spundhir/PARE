@@ -122,13 +122,13 @@ fi
 echo done
 
 ## print header with choosen parameters
-echo "#input BAM file(s): $BAMFILEs
-#input histone peak region file: $PEAKREGION
-#input NFR region file: $NFRREGION
-#output directory: $OUTDIR
-#reference genome: $GENOME
-#regions within which to include random regions: $INCLREGION
-#extend 3' end of reads: $EXTENDs" > $OUTDIR/PARAMETERS
+echo "# input BAM file(s): $BAMFILEs
+# input histone peak region file: $PEAKREGION
+# input NFR region file: $NFRREGION
+# output directory: $OUTDIR
+# reference genome: $GENOME
+# regions within which to include random regions: $INCLREGION
+# extend 3' end of reads: $EXTENDs" > $OUTDIR/PARAMETERS
 
 ## index bam files and estimate size factors
 echo -n "Create index of input BAM files.. "
