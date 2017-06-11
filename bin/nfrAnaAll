@@ -34,7 +34,7 @@ BLOCK_BKG_PERCENTILE="0.0005"
 
 #### usage ####
 usage() {
-	echo Program: "nfrAnaAll (determine nucleosome free regions using histone marks (two replicates))"
+	echo Program: "nfrAnaAll (determine nucleosome free regions using histone marks)"
 	echo Author: BRIC, University of Copenhagen, Denmark
 	echo Version: $VERSION
 	echo Contact: pundhir@binf.ku.dk
