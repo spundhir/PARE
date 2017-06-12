@@ -161,19 +161,19 @@ fi
 #    BLOCK_BKG_PERCENTILE="0.005"
 #fi
 
-echo -n "Initialize input bam files (`date`).. "
+echo -n "Initialize input bam files - remove PCR duplicates (`date`).. "
 ## initialize input BAM files
 oIFS=$IFS
 IFS=","
 BAMFILEa=($BAMFILEs)
 IFS=$oIFS
-echo "done"
 
 BAMFILEs=""
+touch $OUTDIR/macs2/samtools_rmdup.log
 for(( i=0; i<${#BAMFILEa[@]}; i++ )); do
     if [ ! -s "$OUTDIR/macs2/histone_Rep$i.bam" ]; then
         #scp ${BAMFILEa[$i]} $OUTDIR/macs2/histone_Rep$i.bam
-        samtools rmdup -s ${BAMFILEa[$i]} $OUTDIR/macs2/histone_Rep$i.bam &
+        samtools rmdup -s ${BAMFILEa[$i]} $OUTDIR/macs2/histone_Rep$i.bam &>>$OUTDIR/macs2/samtools_rmdup.log &
     fi
     BAMFILEs="$BAMFILEs,$OUTDIR/macs2/histone_Rep$i.bam"
 done
@@ -181,6 +181,7 @@ wait
 BAMFILEs=$(echo $BAMFILEs | perl -ane '$_=~s/^\,//g; print $_;')
 echo "done"
 
+echo -n "Compute region peak file (`date`).. "
 ## reformat input BAM files into macs2 input format
 BAMFILEx=$(echo $BAMFILEs | perl -ane '$_=~s/\,/ /g; print $_;')
 
@@ -241,7 +242,9 @@ elif [ -z "$PEAKREGION" ]; then
     #bedtools sample -i $OUTDIR/macs2/MACS2_peaks.narrowPeak -n 20000 -seed 1 > $OUTDIR/macs2/MACS2_peaks20K.narrowPeak
     PEAKREGION="$OUTDIR/macs2/MACS2_peaks20K.narrowPeak"
 fi
+echo "done"
 
+echo -n "Initiate PARE run (`date`).. "
 ## run PARE
 if [ -z "$PARALLEL" ]; then
     if [ -z "$BIGWIG" ]; then
@@ -264,6 +267,7 @@ if [ $? -eq 1 ]; then
     echo
     exit 1
 fi
+echo "done"
 
 echo "Prepare final output files (`date`).. "
 ## prepare final output files
