@@ -133,6 +133,15 @@ if [ ! -f "$GENOME_FILE" ]; then
     usage
 fi
 
+## print used command
+if [ ! -z "$PEAKREGION" ]; then
+    echo "INITIATING PARE AS: pare -i $BAMFILEs -k $PEAKREGION -o $OUTDIR -m $GENOME -p $PARALLEL -n $MINNFRLENGTH -v $MAXNFRLENGTH -t $NFR_THRESHOLD -l $BLOCK_BKG_PERCENTILE"
+elif [ ! -z "$CONTROL" ]; then
+    echo "INITIATING PARE AS: pare -i $BAMFILEs -c $CONTROL -o $OUTDIR -m $GENOME -p $PARALLEL -n $MINNFRLENGTH -v $MAXNFRLENGTH -t $NFR_THRESHOLD -l $BLOCK_BKG_PERCENTILE"
+else
+    echo "INITIATING PARE AS: pare -i $BAMFILEs -k AUTOCOMPUTE -o $OUTDIR -m $GENOME -p $PARALLEL -n $MINNFRLENGTH -v $MAXNFRLENGTH -t $NFR_THRESHOLD -l $BLOCK_BKG_PERCENTILE"
+fi
+
 ## start time
 START_TIME=$(date +%s)
 
@@ -161,13 +170,23 @@ fi
 #    BLOCK_BKG_PERCENTILE="0.005"
 #fi
 
-echo -n "Initialize input bam files - remove PCR duplicates (`date`).. "
 ## initialize input BAM files
 oIFS=$IFS
 IFS=","
 BAMFILEa=($BAMFILEs)
 IFS=$oIFS
 
+## check, if input BAM files exist
+for(( i=0; i<${#BAMFILEa[@]}; i++ )); do
+    if [ ! -f "${BAMFILEa[$i]}" ]; then
+        echo
+        echo "Cannot locate input BAM file, ${BAMFILEa[$i]}. Please check if it exists."
+        echo
+        exit 1
+    fi
+done
+
+echo -n "Initialize input bam files - remove PCR duplicates (`date`).. "
 BAMFILEs=""
 touch $OUTDIR/macs2/samtools_rmdup.log
 for(( i=0; i<${#BAMFILEa[@]}; i++ )); do
