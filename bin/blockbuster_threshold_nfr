@@ -165,6 +165,14 @@ else
     perl -e 'print "'${BAMFILEa[0]}'\t1\n";' > $NFRDIR/sizeFactor
 fi
 
+## check, if size factor is computed properly
+if [ ! -s $NFRDIR/sizeFactor ]; then
+    echo
+    echo "Error: Size factor is not computed properly. Please check the format of input BED file provided with -k parameter";
+    echo
+    exit 1
+fi
+
 echo -n "Retrieve size factors to normalize the expression of reads... "
 SIZEFACTORa=($(cut -f 2 $NFRDIR/sizeFactor));
 SIZEFACTORs=$(printf ",%s" "${SIZEFACTORa[@]}");

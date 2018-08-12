@@ -38,7 +38,7 @@ usage() {
 	echo " -i <file>   [mapped read file(s) in BAM format]"
     echo "             [if multiple, please separate them by a comma]"
     echo "[OPTIONS]"
-    echo " -k <file>   [optimal histone peaks region in BED format]"
+    echo " -k <file>   [optimal histone peaks region in BED format (chr start end name score strand)]"
     echo "             [-k will get precendence over -c parameter]"
 	echo " -c <file>   [mapped reads in BAM format (control)]"
     echo " -o <dir>    [output directory to store results (default: results)"
@@ -77,44 +77,44 @@ while getopts i:c:k:o:m:p:n:v:t:l:wh ARG; do
 	esac
 done
 
-echo
+>&2 echo
 if [ "$HELP" ]; then
-    usage
+    >&2 usage
 fi
 
-echo
+>&2 echo
 ## usage, if necessary file and directories are given/exist
 if [ -z "$BAMFILEs" ]; then
-    echo
-    echo "Error: one or more required parameter values not provided"
-    echo
-	usage
+    >&2 echo
+    >&2 echo "Error: one or more required parameter values not provided"
+    >&2 echo
+	>&2 usage
 fi
 
 ## check, if required environment variable is set
 if [ -z "$PAREPATH" -o ! -d "$PAREPATH" ]; then
-    echo
-    echo "The environment variable $PAREPATH is either not set or is set incorrectly"
-    echo "Please define it as: export $PAREPATH=<path to the installation directory of PARE>"
-    echo
+    >&2 echo
+    >&2 echo "The environment variable $PAREPATH is either not set or is set incorrectly"
+    >&2 echo "Please define it as: export $PAREPATH=<path to the installation directory of PARE>"
+    >&2 echo
     exit 0    
 fi
 
 ## check if coverage threshold parameter is between 0 and 0.01
 if [ "$(echo $BLOCK_BKG_PERCENTILE | perl -ane 'if($_ < 0 || $_ > 0.01) { print 1; } else { print 0; }')" -eq 1 ]; then 
-    echo
-    echo "Coverage threshold parameter (-l) should be between 0 and 0.01"
-    echo
+    >&2 echo
+    >&2 echo "Coverage threshold parameter (-l) should be between 0 and 0.01"
+    >&2 echo
     exit 1
 fi
 
 ## check, if all prerequisite perl modules, R modules and binaries are installed
 $PAREPATH/bin/checkPrerequisite
 if [ $? -eq 1 ]; then
-    echo
-    echo "One or more perl module, R module or dependent binary is missing";
-    echo "Check for complete dependency list at http://servers.binf.ku.dk/pare/"
-    echo
+    >&2 echo
+    >&2 echo "One or more perl module, R module or dependent binary is missing";
+    >&2 echo "Check for complete dependency list at http://servers.binf.ku.dk/pare/"
+    >&2 echo
     exit 1
 fi
 
@@ -122,15 +122,15 @@ fi
 GENOME_FILE=$(initialize_genome -i $PAREPATH/data/annotations/GENOME_FILE -g $GENOME)
 GENOME_FILE=$PAREPATH/data/annotations/$GENOME_FILE
 if [ ! -f "$GENOME_FILE" ]; then
-    echo
-    echo "computation for $GENOME is not available yet"
-    echo "please add the chromosome size file for $GENOME at $PAREPATH/data/annotations"
-    echo "also update the $PAREPATH/data/annotations/GENOME_FILE"
-    echo
-    echo "chromosome size file for your organism can be downloaded using"
-    echo "mysql  --user=genome --host=genome-mysql.cse.ucsc.edu -A -D hg19 -e 'select chrom,size from chromInfo'"
-    echo
-    usage
+    >&2 echo
+    >&2 echo "computation for $GENOME is not available yet"
+    >&2 echo "please add the chromosome size file for $GENOME at $PAREPATH/data/annotations"
+    >&2 echo "also update the $PAREPATH/data/annotations/GENOME_FILE"
+    >&2 echo
+    >&2 echo "chromosome size file for your organism can be downloaded using"
+    >&2 echo "mysql  --user=genome --host=genome-mysql.cse.ucsc.edu -A -D hg19 -e 'select chrom,size from chromInfo'"
+    >&2 echo
+    >&2 usage
 fi
 
 ## print used command
@@ -179,14 +179,14 @@ IFS=$oIFS
 ## check, if input BAM files exist
 for(( i=0; i<${#BAMFILEa[@]}; i++ )); do
     if [ ! -f "${BAMFILEa[$i]}" ]; then
-        echo
-        echo "Cannot locate input BAM file, ${BAMFILEa[$i]}. Please check if it exists."
-        echo
+        >&2 echo
+        >&2 echo "Cannot locate input BAM file, ${BAMFILEa[$i]}. Please check if it exists."
+        >&2 echo
         exit 1
     fi
 done
 
-echo -n "Initialize input bam files - remove PCR duplicates (`date`).. "
+>&2 echo -n "Initialize input bam files - remove PCR duplicates (`date`).. "
 BAMFILEs=""
 touch $OUTDIR/macs2/samtools_rmdup.log
 for(( i=0; i<${#BAMFILEa[@]}; i++ )); do
@@ -198,9 +198,9 @@ for(( i=0; i<${#BAMFILEa[@]}; i++ )); do
 done
 wait
 BAMFILEs=$(echo $BAMFILEs | perl -ane '$_=~s/^\,//g; print $_;')
-echo "done"
+>&2 echo "done"
 
-echo -n "Compute region peak file (`date`).. "
+>&2 echo -n "Compute region peak file (`date`).. "
 ## reformat input BAM files into macs2 input format
 BAMFILEx=$(echo $BAMFILEs | perl -ane '$_=~s/\,/ /g; print $_;')
 
@@ -261,9 +261,20 @@ elif [ -z "$PEAKREGION" ]; then
     #bedtools sample -i $OUTDIR/macs2/MACS2_peaks.narrowPeak -n 20000 -seed 1 > $OUTDIR/macs2/MACS2_peaks20K.narrowPeak
     PEAKREGION="$OUTDIR/macs2/MACS2_peaks20K.narrowPeak"
 fi
-echo "done"
+>&2 echo "done"
 
-echo -n "Initiate PARE run (`date`).. "
+>&2 echo -n "Check peak file format (`date`).. "
+PEAKREGION_FORMAT=$(grep -v "^#" $PEAKREGION | head -n 1 | perl -ane 'if($F[1]!~/^[0-9]+$/ || scalar(@F)<6) { print 0; } else { print 1; }');
+if [ "$PEAKREGION_FORMAT" -eq 0 ]; then
+    >&2 echo
+    >&2 echo "Error: $PEAKREGION file is not in correct format"
+    >&2 echo "Correct format: chr start end name score strand"
+    >&2 echo
+	>&2 usage
+fi
+>&2 echo "done"
+
+>&2 echo -n "Initiate PARE run (`date`).. "
 ## run PARE
 if [ -z "$PARALLEL" ]; then
     if [ -z "$BIGWIG" ]; then
@@ -281,14 +292,14 @@ fi
 
 ## check, if everything worked properly
 if [ $? -eq 1 ]; then
-    echo
-    echo "Something didn't worked properly. Please check the log files under analysis/logs";
-    echo
+    >&2 echo
+    >&2 echo "Something didn't worked properly. Please check the log files under analysis/logs";
+    >&2 echo
     exit 1
 fi
-echo "done"
+>&2 echo "done"
 
-echo "Prepare final output files (`date`).. "
+>&2 echo "Prepare final output files (`date`).. "
 ## prepare final output files
 ID=`echo $BAMFILEx | perl -ane '$_=~s/^.*\///g; $_=~s/Rep.*$//g; $_=~s/\_$//g; print $_;'`;
 
@@ -324,6 +335,6 @@ echo "# timestamp: $DATE
 # result file (html format): $OUTDIR/RESULTS.HTML
 # result file (all NFRs; sig + insig): $OUTDIR/RESULTS.ALL" > $OUTDIR/RUN.INFO
 
-echo "All done. Bye"
+>&2 echo "All done. Bye"
 
 exit
